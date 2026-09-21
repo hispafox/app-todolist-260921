@@ -27,9 +27,17 @@ Thumbs.db
 TestResults/
 coverage/
 *.trx
+playwright-report/
+test-results/
+.playwright/
 
 # Local databases and generated logs
 *.db
+*.db-shm
+*.db-wal
 *.sqlite
 *.sqlite3
 *.log
+
+# Local dev tooling (machine-specific)
+.devlauncher/

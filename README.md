@@ -4,16 +4,63 @@ Aplicación ligera para gestionar tareas personales. El proyecto sirve como prod
 
 ## Estado actual
 
-El repositorio contiene actualmente un MVP autónomo en [mvp/index.html](mvp/index.html). La demo permite:
+La aplicación real ya está implementada siguiendo el PRD y las convenciones del proyecto:
 
-- Crear, editar, completar, reabrir y eliminar tareas.
-- Asignar prioridad, categoría y fecha de vencimiento.
-- Buscar por título o descripción.
-- Filtrar por estado, prioridad y categoría.
-- Consultar contadores de tareas totales, pendientes y completadas.
-- Usar la interfaz en escritorio y móvil.
+- **Backend** (`backend/`): solución .NET 10 con arquitectura por capas (Domain, Application, Infrastructure, Api), Minimal APIs, Entity Framework Core sobre SQLite, validación con FluentValidation y documentación Swagger/OpenAPI.
+- **Frontend** (`frontend/`): SPA con React, Vite, TypeScript, Tailwind CSS v4, TanStack Query, React Hook Form y Zod, conectada a la API REST.
+- **Pruebas**: xUnit + FluentAssertions en el backend (unitarias e integración) y Vitest + Testing Library en el frontend.
 
-La demo guarda los datos en `localStorage` con la clave `taskflow-mvp-tasks`. Esta persistencia solo sirve para la demostración; la versión productiva utilizará SQLite mediante la API REST definida en el PRD.
+El MVP autónomo original se conserva como referencia visual en [mvp/index.html](mvp/index.html) y usa `localStorage` con la clave `taskflow-mvp-tasks`; no representa la persistencia productiva, que es SQLite mediante la API REST.
+
+## Arrancar la aplicación
+
+Requisitos: .NET 10 SDK y Node.js 22+.
+
+### Backend (`backend/`)
+
+```powershell
+cd backend
+dotnet restore
+dotnet run --project src/TaskFlow.Api
+```
+
+La API arranca en `https://localhost:5001`. En desarrollo la documentación interactiva está disponible en dos interfaces sobre el mismo OpenAPI: **Swagger UI** en `/swagger` y **Scalar** en `/scalar`. La base de datos SQLite `taskflow.db` se crea y migra automáticamente al iniciar, con datos de ejemplo si está vacía.
+
+### Frontend (`frontend/`)
+
+```powershell
+cd frontend
+npm install
+npm run dev
+```
+
+La SPA arranca en `http://localhost:5173` y usa un proxy de Vite hacia el backend HTTPS (`/api` → `https://localhost:5001`). Arranca primero el backend para que las peticiones funcionen.
+
+### Pruebas
+
+```powershell
+# Backend
+cd backend
+dotnet test
+
+# Frontend (unitarios y de componentes)
+cd frontend
+npm run test
+```
+
+#### Pruebas end to end (Playwright)
+
+Los tests e2e recorren la aplicación completa contra el backend y el frontend reales, así que ambos deben estar en marcha antes de lanzarlos. Se ejecutan sobre Microsoft Edge (canal `msedge`), que ya viene con Windows, por lo que no requieren descargar ningún navegador adicional.
+
+Con el backend (`https://localhost:5001`) y el frontend (`http://localhost:5173`) ya arrancados en otras terminales:
+
+```powershell
+cd frontend
+npm run test:e2e      # ejecución headless
+npm run test:e2e:ui   # modo interactivo con la UI de Playwright
+```
+
+Los tests crean tareas con títulos únicos y las eliminan al terminar, por lo que no dejan residuos en la base de datos.
 
 ## Probar el MVP
 
