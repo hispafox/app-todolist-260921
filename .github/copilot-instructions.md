@@ -20,6 +20,21 @@ El documento funcional de referencia es [docs/PRD-TaskFlow-Completo.md](../docs/
 - El MVP sirve como referencia de comportamiento y UX: crear, editar, completar, reabrir y eliminar tareas; prioridad; categoría; vencimiento; búsqueda por título o descripción; filtros por estado, prioridad y categoría; contadores y diseño responsive.
 - Al sustituir la demo por la aplicación real, conservar esos flujos salvo que el PRD indique lo contrario y conectar las operaciones a la API REST.
 
+### Dirección visual de referencia
+
+La demo del MVP define la línea visual que debe conservar la aplicación real. Antes de crear o modificar una pantalla, consultar `mvp/index.html` y mantener estos principios:
+
+- Composición editorial y serena: cabecera amplia en verde petróleo, contenido claro sobre fondo marfil y una transición visual limpia hacia el área de trabajo.
+- Jerarquía tipográfica intencionada: serif con personalidad para títulos y mensajes principales; sans-serif legible para formularios, filtros, etiquetas y datos auxiliares.
+- Paleta contenida y funcional: tinta oscura para el contenido, teal para acciones y foco, menta para acciones secundarias, coral para eliminación o vencimientos y ámbar para prioridad media.
+- Superficies blancas con bordes suaves, sombras discretas y radios moderados; evitar interfaces saturadas de tarjetas, gradientes decorativos o colores sin significado funcional.
+- Densidad orientada al trabajo: formulario de alta visible, resumen de contadores, búsqueda y filtros en la misma vista, y tareas escaneables mediante etiquetas compactas.
+- Estados claramente diferenciados: tarea completada con tachado y menor contraste, vencimiento atrasado con alerta coral, estado vacío útil y notificaciones breves para confirmar acciones.
+- Responsive real: el escritorio usa formulario y lista en dos columnas; en pantallas estrechas se apilan, los controles se reorganizan y las acciones siguen siendo accesibles por teclado.
+- Mantener accesibilidad y foco visible. Los botones iconográficos deben conservar nombre accesible y tooltip; no sustituir el significado por decoración.
+
+No convertir esta guía en una plantilla rígida: conservar la intención, el contraste, la jerarquía y la ergonomía aunque cambie la tecnología de estilos.
+
 ## Arquitectura
 
 Mantener separación clara de responsabilidades y dependencias unidireccionales:
