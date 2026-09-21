@@ -1,11 +1,13 @@
 ---
 name: mensajes-commit
-description: Genera mensajes de commit claros, específicos y útiles para este proyecto, con resumen breve y cuerpo opcional solo cuando aporta detalle real.
+description: "Genera mensajes de commit para este repositorio cuando el usuario solicita registrar, confirmar o enviar cambios. Sigue el formato tipo(ambito): descripción corta y solo añade cuerpo si aporta contexto real."
 ---
 
 # Mensajes de commit
 
-Usa este skill para redactar mensajes de commit en este repositorio.
+Usa este skill cuando el usuario pida hacer una subida, crear un commit, preparar un push o documentar cambios en Git.
+
+Se activa en contextos de "sube los cambios", "haz commit", "envía cambios" o cuando haya que redactar un mensaje de Git con formato preciso y útil para el historial del repositorio.
 
 ## Reglas principales
 
