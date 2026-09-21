@@ -1,0 +1,35 @@
+# Build output
+bin/
+obj/
+dist/
+build/
+
+# Dependencies
+node_modules/
+
+# Local configuration and secrets
+.env
+.env.*
+!.env.example
+*.user
+*.suo
+
+# IDE and OS files
+.vs/
+.vscode/settings.json
+.vscode/launch.json
+.vscode/tasks.json
+.idea/
+.DS_Store
+Thumbs.db
+
+# Test and coverage output
+TestResults/
+coverage/
+*.trx
+
+# Local databases and generated logs
+*.db
+*.sqlite
+*.sqlite3
+*.log
