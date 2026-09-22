@@ -6,6 +6,8 @@ build/
 
 # Dependencies
 node_modules/
+__pycache__/
+*.pyc
 
 # Local configuration and secrets
 .env
