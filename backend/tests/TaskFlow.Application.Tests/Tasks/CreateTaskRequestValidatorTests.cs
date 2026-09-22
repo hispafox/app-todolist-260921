@@ -12,7 +12,7 @@ public class CreateTaskRequestValidatorTests
     [Fact]
     public void Validate_Fails_WhenTitleIsEmpty()
     {
-        var request = new CreateTaskRequest(string.Empty, null, 2, null, null);
+        var request = new CreateTaskRequest(string.Empty, null, 2, null, null, null);
 
         var result = _validator.Validate(request);
 
@@ -25,7 +25,7 @@ public class CreateTaskRequestValidatorTests
     [InlineData(4)]
     public void Validate_Fails_WhenPriorityIsOutOfRange(int priority)
     {
-        var request = new CreateTaskRequest("Título válido", null, priority, null, null);
+        var request = new CreateTaskRequest("Título válido", null, priority, null, null, null);
 
         var result = _validator.Validate(request);
 
@@ -36,7 +36,7 @@ public class CreateTaskRequestValidatorTests
     [Fact]
     public void Validate_Succeeds_WithValidData()
     {
-        var request = new CreateTaskRequest("Título válido", "Descripción", 2, "Personal", DateTime.UtcNow);
+        var request = new CreateTaskRequest("Título válido", "Descripción", 2, "Personal", DateTime.UtcNow, null);
 
         var result = _validator.Validate(request);
 

@@ -6,6 +6,7 @@ import { TaskList } from './components/TaskList'
 import { TaskStats } from './components/TaskStats'
 import { TaskToolbar } from './components/TaskToolbar'
 import { ToastContainer, useToast } from './components/Toast'
+import { UserManager } from './components/UserManager'
 import {
   useCompleteTask,
   useCreateTask,
@@ -14,8 +15,15 @@ import {
   useTasks,
   useUpdateTask,
 } from './hooks/useTasks'
+import {
+  useCreateUser,
+  useDeleteUser,
+  useUpdateUser,
+  useUsers,
+} from './hooks/useUsers'
 import type { TaskFormOutput } from './schemas/taskFormSchema'
 import type { Task, TaskFilters } from './types/task'
+import type { User } from './types/user'
 import { formToPayload } from './utils/taskMapping'
 
 const initialFilters: TaskFilters = {
@@ -29,6 +37,7 @@ function App() {
   const [filters, setFilters] = useState<TaskFilters>(initialFilters)
   const [editingTask, setEditingTask] = useState<Task | undefined>(undefined)
   const [taskToDelete, setTaskToDelete] = useState<Task | undefined>(undefined)
+  const [userToDelete, setUserToDelete] = useState<User | undefined>(undefined)
 
   const { toasts, showToast } = useToast()
   const tasksQuery = useTasks(filters)
@@ -38,7 +47,14 @@ function App() {
   const reopenMutation = useReopenTask()
   const deleteMutation = useDeleteTask()
 
+  const usersQuery = useUsers()
+  const createUserMutation = useCreateUser()
+  const updateUserMutation = useUpdateUser()
+  const deleteUserMutation = useDeleteUser()
+
   const tasks = useMemo(() => tasksQuery.data ?? [], [tasksQuery.data])
+  const users = useMemo(() => usersQuery.data ?? [], [usersQuery.data])
+
 
   const counts = useMemo(() => {
     const completed = tasks.filter((task) => task.isCompleted).length
@@ -112,18 +128,52 @@ function App() {
     }
   }
 
+  const handleCreateUser = async (values: { name: string; email: string; color: string }) => {
+    await createUserMutation.mutateAsync(values)
+    showToast('Usuario añadido')
+  }
+
+  const handleUpdateUser = async (id: number, values: { name: string; email: string; color: string }) => {
+    await updateUserMutation.mutateAsync({ id, payload: values })
+    showToast('Usuario actualizado')
+  }
+
+  const handleConfirmDeleteUser = async () => {
+    if (!userToDelete) {
+      return
+    }
+    try {
+      await deleteUserMutation.mutateAsync(userToDelete.id)
+      showToast('Usuario eliminado')
+    } catch {
+      showToast('No se ha podido eliminar el usuario')
+    } finally {
+      setUserToDelete(undefined)
+    }
+  }
+
   return (
     <div className="min-h-screen overflow-hidden">
       <AppHeader />
 
       <main className="relative mx-auto -mt-[42px] mb-16 max-w-[1200px] px-3 sm:px-5">
         <div className="grid grid-cols-1 items-start gap-6 lg:grid-cols-[minmax(280px,350px)_1fr]">
-          <TaskForm
-            editingTask={editingTask}
-            isSubmitting={createMutation.isPending || updateMutation.isPending}
-            onSubmit={handleSubmit}
-            onCancelEdit={() => setEditingTask(undefined)}
-          />
+          <div>
+            <TaskForm
+              editingTask={editingTask}
+              users={users}
+              isSubmitting={createMutation.isPending || updateMutation.isPending}
+              onSubmit={handleSubmit}
+              onCancelEdit={() => setEditingTask(undefined)}
+            />
+            <UserManager
+              users={users}
+              isLoading={usersQuery.isLoading}
+              onCreate={handleCreateUser}
+              onUpdate={handleUpdateUser}
+              onDelete={setUserToDelete}
+            />
+          </div>
 
           <section className="min-w-0">
             <TaskStats
@@ -138,6 +188,7 @@ function App() {
             />
             <TaskList
               tasks={tasks}
+              users={users}
               isLoading={tasksQuery.isLoading}
               isError={tasksQuery.isError}
               hasActiveFilters={hasActiveFilters}
@@ -156,6 +207,14 @@ function App() {
         message={`¿Seguro que quieres eliminar «${taskToDelete?.title ?? ''}»? Esta acción no se puede deshacer.`}
         onConfirm={handleConfirmDelete}
         onCancel={() => setTaskToDelete(undefined)}
+      />
+
+      <ConfirmDialog
+        open={Boolean(userToDelete)}
+        title="Eliminar usuario"
+        message={`¿Seguro que quieres eliminar a «${userToDelete?.name ?? ''}»? Las tareas asignadas quedarán sin asignar.`}
+        onConfirm={handleConfirmDeleteUser}
+        onCancel={() => setUserToDelete(undefined)}
       />
 
       <ToastContainer toasts={toasts} />

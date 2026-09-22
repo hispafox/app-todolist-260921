@@ -1,7 +1,9 @@
 using Microsoft.AspNetCore.Diagnostics;
 using Scalar.AspNetCore;
 using TaskFlow.Api.Tasks;
+using TaskFlow.Api.Users;
 using TaskFlow.Application;
+using TaskFlow.Application.Common;
 using TaskFlow.Infrastructure;
 using TaskFlow.Infrastructure.Persistence;
 
@@ -42,10 +44,30 @@ app.UseExceptionHandler(errorApp =>
     errorApp.Run(async context =>
     {
         var feature = context.Features.Get<IExceptionHandlerFeature>();
+        var exception = feature?.Error;
+
+        if (exception is NotFoundException)
+        {
+            await Results.Problem(
+                title: "Recurso no encontrado",
+                detail: exception.Message,
+                statusCode: StatusCodes.Status404NotFound).ExecuteAsync(context);
+            return;
+        }
+
+        if (exception is ConflictException)
+        {
+            await Results.Problem(
+                title: "Conflicto",
+                detail: exception.Message,
+                statusCode: StatusCodes.Status409Conflict).ExecuteAsync(context);
+            return;
+        }
+
         context.Response.StatusCode = StatusCodes.Status500InternalServerError;
         await Results.Problem(
             title: "Error interno",
-            detail: feature?.Error.Message,
+            detail: exception?.Message,
             statusCode: StatusCodes.Status500InternalServerError).ExecuteAsync(context);
     });
 });
@@ -53,6 +75,7 @@ app.UseExceptionHandler(errorApp =>
 app.UseCors(FrontendCorsPolicy);
 
 app.MapTaskEndpoints();
+app.MapUserEndpoints();
 
 using (var scope = app.Services.CreateScope())
 {

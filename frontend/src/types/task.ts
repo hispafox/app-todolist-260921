@@ -16,6 +16,7 @@ export interface Task {
   category: string | null
   isCompleted: boolean
   dueDate: string | null
+  assignedUserId: number | null
   createdAt: string
   updatedAt: string
 }
@@ -33,6 +34,7 @@ export interface CreateTaskPayload {
   priority: TaskPriorityValue
   category: string | null
   dueDate: string | null
+  assignedUserId: number | null
 }
 
 export type UpdateTaskPayload = CreateTaskPayload

@@ -1,8 +1,10 @@
 import type { Task } from '../types/task'
+import type { User } from '../types/user'
 import { formatDueDate, isOverdue, priorityLabels } from '../utils/taskMapping'
 
 interface TaskItemProps {
   task: Task
+  users?: User[]
   onToggleComplete: (task: Task) => void
   onEdit: (task: Task) => void
   onDelete: (task: Task) => void
@@ -14,8 +16,9 @@ const priorityPillClass: Record<number, string> = {
   1: 'bg-[#e0f2ed] text-[#3e7168]',
 }
 
-export function TaskItem({ task, onToggleComplete, onEdit, onDelete }: TaskItemProps) {
+export function TaskItem({ task, users = [], onToggleComplete, onEdit, onDelete }: TaskItemProps) {
   const overdue = isOverdue(task)
+  const assignedUser = users.find((user) => user.id === task.assignedUserId)
 
   return (
     <article
@@ -66,6 +69,16 @@ export function TaskItem({ task, onToggleComplete, onEdit, onDelete }: TaskItemP
             >
               {overdue ? 'Vencida · ' : ''}
               {formatDueDate(task.dueDate)}
+            </span>
+          )}
+          {assignedUser && (
+            <span className="inline-flex min-h-6 items-center gap-1.5 rounded-[5px] bg-[#edf1ef] px-2 py-1 font-sans text-[10px] font-bold uppercase tracking-[0.06em] text-[#4f5f65]">
+              <span
+                aria-hidden
+                className="h-1.5 w-1.5 rounded-full"
+                style={{ backgroundColor: assignedUser.color }}
+              />
+              {assignedUser.name}
             </span>
           )}
         </div>

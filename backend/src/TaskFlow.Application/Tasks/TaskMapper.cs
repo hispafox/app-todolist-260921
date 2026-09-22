@@ -13,6 +13,7 @@ public static class TaskMapper
         task.Category,
         task.IsCompleted,
         task.DueDate,
+        task.AssignedUserId,
         task.CreatedAt,
         task.UpdatedAt);
 }

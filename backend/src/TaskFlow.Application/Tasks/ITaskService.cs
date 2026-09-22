@@ -12,6 +12,8 @@ public interface ITaskService
 
     Task<TaskDto?> UpdateTaskAsync(int id, UpdateTaskRequest request, CancellationToken cancellationToken);
 
+    Task<TaskDto?> AssignUserAsync(int id, int? userId, CancellationToken cancellationToken);
+
     Task<TaskDto?> CompleteTaskAsync(int id, CancellationToken cancellationToken);
 
     Task<TaskDto?> ReopenTaskAsync(int id, CancellationToken cancellationToken);

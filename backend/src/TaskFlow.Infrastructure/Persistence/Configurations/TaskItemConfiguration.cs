@@ -34,8 +34,14 @@ public class TaskItemConfiguration : IEntityTypeConfiguration<TaskItem>
         builder.Property(t => t.UpdatedAt)
             .IsRequired();
 
+        builder.HasOne<AppUser>()
+            .WithMany()
+            .HasForeignKey(t => t.AssignedUserId)
+            .OnDelete(DeleteBehavior.SetNull);
+
         builder.HasIndex(t => t.IsCompleted);
         builder.HasIndex(t => t.Priority);
         builder.HasIndex(t => t.Category);
+        builder.HasIndex(t => t.AssignedUserId);
     }
 }

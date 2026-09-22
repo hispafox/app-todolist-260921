@@ -14,6 +14,7 @@ export function formToPayload(values: TaskFormOutput): CreateTaskPayload {
     priority: values.priority as TaskPriorityValue,
     category: values.category?.trim() ? values.category.trim() : null,
     dueDate: values.dueDate ? new Date(values.dueDate).toISOString() : null,
+    assignedUserId: values.assignedUserId ? Number(values.assignedUserId) : null,
   }
 }
 
@@ -24,6 +25,7 @@ export function taskToFormDefaults(task?: Task) {
     priority: String(task?.priority ?? 2),
     category: task?.category ?? '',
     dueDate: task?.dueDate ? task.dueDate.slice(0, 10) : '',
+    assignedUserId: task?.assignedUserId != null ? String(task.assignedUserId) : '',
   }
 }
 

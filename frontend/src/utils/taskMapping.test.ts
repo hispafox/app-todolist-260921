@@ -15,6 +15,7 @@ function buildTask(overrides: Partial<Task> = {}): Task {
     category: null,
     isCompleted: false,
     dueDate: null,
+    assignedUserId: null,
     createdAt: '2026-01-01T00:00:00Z',
     updatedAt: '2026-01-01T00:00:00Z',
     ...overrides,
@@ -46,6 +47,19 @@ describe('taskMapping', () => {
     })
 
     expect(payload.dueDate).toContain('2026-05-10')
+  })
+
+  it('formToPayload convierte assignedUserId vacío en null y numérico en number', () => {
+    const unassigned = formToPayload({ title: 'Sin asignar', priority: 2, assignedUserId: '' })
+    expect(unassigned.assignedUserId).toBeNull()
+
+    const assigned = formToPayload({ title: 'Asignada', priority: 2, assignedUserId: '3' })
+    expect(assigned.assignedUserId).toBe(3)
+  })
+
+  it('taskToFormDefaults refleja el usuario asignado como string', () => {
+    const task = buildTask({ assignedUserId: 5 })
+    expect(taskToFormDefaults(task).assignedUserId).toBe('5')
   })
 
   it('isOverdue devuelve false para tareas completadas', () => {

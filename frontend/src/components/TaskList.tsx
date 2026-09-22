@@ -1,8 +1,10 @@
 import type { Task } from '../types/task'
+import type { User } from '../types/user'
 import { TaskItem } from './TaskItem'
 
 interface TaskListProps {
   tasks: Task[]
+  users?: User[]
   isLoading: boolean
   isError: boolean
   hasActiveFilters: boolean
@@ -14,6 +16,7 @@ interface TaskListProps {
 
 export function TaskList({
   tasks,
+  users = [],
   isLoading,
   isError,
   hasActiveFilters,
@@ -71,6 +74,7 @@ export function TaskList({
         <TaskItem
           key={task.id}
           task={task}
+          users={users}
           onToggleComplete={onToggleComplete}
           onEdit={onEdit}
           onDelete={onDelete}

@@ -60,7 +60,9 @@ frontend/
 
 ## Modelo y contrato
 
-La entidad `Task` mantiene estos campos: `Id`, `Title`, `Description`, `Priority`, `Category`, `IsCompleted`, `DueDate`, `CreatedAt` y `UpdatedAt`. `Title` es obligatorio; el resto de campos opcionales u obligatorios debe respetar el PRD.
+La entidad `Task` mantiene estos campos: `Id`, `Title`, `Description`, `Priority`, `Category`, `IsCompleted`, `DueDate`, `AssignedUserId`, `CreatedAt` y `UpdatedAt`. `Title` es obligatorio; el resto de campos opcionales u obligatorios debe respetar el PRD.
+
+La entidad `AppUser` (catálogo de usuarios asignables, sin autenticación ni sesiones) mantiene: `Id`, `Name`, `Email` (único) y `Color`. `AssignedUserId` en `Task` es una FK opcional hacia `AppUser`; al eliminar un usuario, sus tareas asignadas quedan sin asignar en lugar de eliminarse.
 
 La API debe conservar estos endpoints y semántica:
 
@@ -70,9 +72,17 @@ La API debe conservar estos endpoints y semántica:
 - `PUT /api/tasks/{id}`
 - `PATCH /api/tasks/{id}/complete`
 - `PATCH /api/tasks/{id}/reopen`
+- `PATCH /api/tasks/{id}/assign`
 - `DELETE /api/tasks/{id}`
+- `GET /api/users`
+- `GET /api/users/{id}`
+- `POST /api/users`
+- `PUT /api/users/{id}`
+- `DELETE /api/users/{id}`
 
 Validar todas las entradas y devolver códigos HTTP coherentes y errores consistentes. Mantener nombres de propiedades y rutas en inglés para conservar el contrato del PRD y del MVP; redactar la documentación y los textos de interfaz en castellano.
+
+Nota de alcance: el PRD excluye explícitamente el soporte multiusuario (autenticación, sesiones, roles). El catálogo de `AppUser` es un mecanismo de asignación simple, no un sistema de autenticación; no añadir login, tokens ni aislamiento de datos por usuario salvo petición explícita.
 
 ## Convenciones de implementación
 

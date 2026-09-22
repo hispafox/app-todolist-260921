@@ -3,6 +3,9 @@ import userEvent from '@testing-library/user-event'
 import { screen, waitFor } from '@testing-library/react'
 import { TaskForm } from '../components/TaskForm'
 import { renderWithQueryClient } from '../test/utils'
+import type { User } from '../types/user'
+
+const users: User[] = [{ id: 1, name: 'Ana García', email: 'ana@taskflow.dev', color: '#2F6F62' }]
 
 describe('TaskForm', () => {
   it('muestra un error de validación cuando falta el título', async () => {
@@ -52,6 +55,7 @@ describe('TaskForm', () => {
           category: null,
           isCompleted: false,
           dueDate: null,
+          assignedUserId: null,
           createdAt: '2026-01-01T00:00:00Z',
           updatedAt: '2026-01-01T00:00:00Z',
         }}
@@ -63,5 +67,24 @@ describe('TaskForm', () => {
 
     expect(screen.getByRole('button', { name: /cancelar/i })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /guardar cambios/i })).toBeInTheDocument()
+  })
+
+  it('permite asignar la tarea a un usuario del listado', async () => {
+    const onSubmit = vi.fn()
+    renderWithQueryClient(
+      <TaskForm
+        users={users}
+        isSubmitting={false}
+        onSubmit={onSubmit}
+        onCancelEdit={() => {}}
+      />,
+    )
+
+    await userEvent.type(screen.getByLabelText(/título/i), 'Tarea asignada')
+    await userEvent.selectOptions(screen.getByLabelText(/asignada a/i), '1')
+    await userEvent.click(screen.getByRole('button', { name: /crear tarea/i }))
+
+    await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1))
+    expect(onSubmit.mock.calls[0][0].assignedUserId).toBe('1')
   })
 })

@@ -7,10 +7,12 @@ import {
   type TaskFormValues,
 } from '../schemas/taskFormSchema'
 import type { Task } from '../types/task'
+import type { User } from '../types/user'
 import { taskToFormDefaults } from '../utils/taskMapping'
 
 interface TaskFormProps {
   editingTask?: Task
+  users?: User[]
   isSubmitting: boolean
   onSubmit: (values: TaskFormOutput) => Promise<void> | void
   onCancelEdit: () => void
@@ -18,6 +20,7 @@ interface TaskFormProps {
 
 export function TaskForm({
   editingTask,
+  users = [],
   isSubmitting,
   onSubmit,
   onCancelEdit,
@@ -131,6 +134,20 @@ export function TaskForm({
             className={inputClass}
           />
           {errors.category && <p className={errorClass}>{errors.category.message}</p>}
+        </div>
+
+        <div className="mb-4">
+          <label htmlFor="assignedUserId" className={labelClass}>
+            Asignada a
+          </label>
+          <select id="assignedUserId" {...register('assignedUserId')} className={inputClass}>
+            <option value="">Sin asignar</option>
+            {users.map((user) => (
+              <option key={user.id} value={user.id}>
+                {user.name}
+              </option>
+            ))}
+          </select>
         </div>
 
         <div className="mt-5 flex gap-2.5">

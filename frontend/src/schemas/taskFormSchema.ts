@@ -24,6 +24,7 @@ export const taskFormSchema = z.object({
     .max(40, 'La categoría no puede superar los 40 caracteres.')
     .optional(),
   dueDate: z.string().optional(),
+  assignedUserId: z.string().optional(),
 })
 
 export type TaskFormValues = z.input<typeof taskFormSchema>

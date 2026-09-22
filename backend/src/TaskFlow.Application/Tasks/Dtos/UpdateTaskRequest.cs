@@ -5,4 +5,5 @@ public record UpdateTaskRequest(
     string? Description,
     int Priority,
     string? Category,
-    DateTime? DueDate);
+    DateTime? DueDate,
+    int? AssignedUserId);

@@ -11,6 +11,7 @@ public class TaskItem
     public string? Category { get; private set; }
     public bool IsCompleted { get; private set; }
     public DateTime? DueDate { get; private set; }
+    public int? AssignedUserId { get; private set; }
     public DateTime CreatedAt { get; private set; }
     public DateTime UpdatedAt { get; private set; }
 
@@ -19,24 +20,32 @@ public class TaskItem
     {
     }
 
-    public TaskItem(string title, string? description, TaskPriority priority, string? category, DateTime? dueDate, DateTime now)
+    public TaskItem(string title, string? description, TaskPriority priority, string? category, DateTime? dueDate, int? assignedUserId, DateTime now)
     {
         SetTitle(title);
         Description = description;
         Priority = priority;
         Category = category;
         DueDate = dueDate;
+        AssignedUserId = assignedUserId;
         CreatedAt = now;
         UpdatedAt = now;
     }
 
-    public void Update(string title, string? description, TaskPriority priority, string? category, DateTime? dueDate, DateTime now)
+    public void Update(string title, string? description, TaskPriority priority, string? category, DateTime? dueDate, int? assignedUserId, DateTime now)
     {
         SetTitle(title);
         Description = description;
         Priority = priority;
         Category = category;
         DueDate = dueDate;
+        AssignedUserId = assignedUserId;
+        UpdatedAt = now;
+    }
+
+    public void AssignUser(int? userId, DateTime now)
+    {
+        AssignedUserId = userId;
         UpdatedAt = now;
     }
 

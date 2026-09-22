@@ -8,5 +8,6 @@ public record TaskDto(
     string? Category,
     bool IsCompleted,
     DateTime? DueDate,
+    int? AssignedUserId,
     DateTime CreatedAt,
     DateTime UpdatedAt);

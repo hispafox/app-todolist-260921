@@ -17,6 +17,7 @@ public static class TaskEndpoints
         group.MapPut("/{id:int}", UpdateTaskAsync);
         group.MapPatch("/{id:int}/complete", CompleteTaskAsync);
         group.MapPatch("/{id:int}/reopen", ReopenTaskAsync);
+        group.MapPatch("/{id:int}/assign", AssignUserAsync);
         group.MapDelete("/{id:int}", DeleteTaskAsync);
 
         return app;
@@ -79,6 +80,16 @@ public static class TaskEndpoints
     private static async Task<IResult> ReopenTaskAsync(int id, ITaskService taskService, CancellationToken cancellationToken)
     {
         var task = await taskService.ReopenTaskAsync(id, cancellationToken);
+        return task is null ? Results.NotFound() : Results.Ok(task);
+    }
+
+    private static async Task<IResult> AssignUserAsync(
+        int id,
+        AssignTaskRequest request,
+        ITaskService taskService,
+        CancellationToken cancellationToken)
+    {
+        var task = await taskService.AssignUserAsync(id, request.UserId, cancellationToken);
         return task is null ? Results.NotFound() : Results.Ok(task);
     }
 
