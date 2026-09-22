@@ -42,6 +42,7 @@ Un skill no decide cuándo actuar: describe **cómo** se hace algo. El agente es
 | Skill | Carpeta generada | Responsabilidad |
 |---|---|---|
 | `diseño-analisis` | `docs/` | Documento de análisis y diseño — fuente de verdad de todo lo demás |
+| `documento-funcional-arquitectura` | `docs/` | Documento funcional en Markdown con la arquitectura ilustrada en diagramas Mermaid (capas, flujo de petición, modelo de datos, carpetas) |
 | `modelo` | `Models/` | Entidades de dominio (clases C#) |
 | `dto` | `Dtos/` | Contratos de entrada y salida de la API |
 | `base-de-datos` | `Data/` | AppDbContext, Fluent API, migraciones, seeder |
