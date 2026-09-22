@@ -12,7 +12,7 @@ interface TaskItemProps {
 
 const priorityPillClass: Record<number, string> = {
   3: 'bg-[#fce4dd] text-[#a33e29]',
-  2: 'bg-[#fff0c9] text-[#98680e]',
+  2: 'bg-[#fff0c9] text-amber-dark',
   1: 'bg-[#e0f2ed] text-[#3e7168]',
 }
 
@@ -36,7 +36,7 @@ export function TaskItem({ task, users = [], onToggleComplete, onEdit, onDelete 
       <div className="min-w-0">
         <h3
           className={`mb-1.5 text-[19px] font-medium ${
-            task.isCompleted ? 'text-[#8a9898] line-through' : ''
+            task.isCompleted ? 'text-[#5f6d6c] line-through' : ''
           }`}
         >
           {task.title}
@@ -44,7 +44,7 @@ export function TaskItem({ task, users = [], onToggleComplete, onEdit, onDelete 
         {task.description && (
           <p
             className={`mb-2.5 whitespace-pre-wrap font-sans text-[13px] leading-[1.45] ${
-              task.isCompleted ? 'text-[#a5b0ae]' : 'text-muted'
+              task.isCompleted ? 'text-[#66746f]' : 'text-muted'
             }`}
           >
             {task.description}

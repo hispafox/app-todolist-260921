@@ -5,7 +5,7 @@
   --font-sans: Arial, system-ui, sans-serif;
 
   --color-ink: #18242b;
-  --color-muted: #6d7b80;
+  --color-muted: #55656a;
   --color-paper: #f5f7f4;
   --color-surface: #ffffff;
   --color-line: #dce5e1;
@@ -14,6 +14,7 @@
   --color-mint: #d8f3ec;
   --color-coral: #e76f51;
   --color-amber: #d99a24;
+  --color-amber-dark: #7a530a;
   --color-brand-header: #154b4a;
 
   --shadow-panel: 0 18px 45px rgba(28, 57, 56, 0.09);
@@ -51,5 +52,15 @@ button {
   to {
     opacity: 1;
     transform: translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
   }
 }
