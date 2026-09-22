@@ -1,6 +1,7 @@
 ---
 name: mensajes-commit
 description: "Genera mensajes de commit para este repositorio cuando el usuario solicita registrar, confirmar o enviar cambios. Sigue el formato tipo(ambito): descripción corta y solo añade cuerpo si aporta contexto real."
+argument-hint: 'Describe brevemente el cambio que vas a commitear'
 ---
 
 # Mensajes de commit
