@@ -1,24 +1,27 @@
 ---
 name: logica-negocio
-description: 'Crea o actualiza las interfaces e implementaciones de la capa de lógica de negocio. Úsalo cuando quieras generar las clases que contienen las reglas de negocio y el acceso a datos, separadas de la orquestación de servicios.'
+description: 'Crea o actualiza las interfaces e implementaciones de los repositorios de acceso a datos. Úsalo cuando quieras generar la capa que traduce operaciones sobre entidades de dominio en consultas EF Core, separada de la orquestación de servicios.'
 argument-hint: 'Recurso a generar (opcional, por defecto: todos los recursos de la sección 5 del análisis)'
 ---
 
-# Skill: Crear Lógica de Negocio
+# Skill: Crear el Repositorio de Acceso a Datos
+
+## Nota sobre el nombre de este skill
+
+En TaskFlow no existe una capa `LogicaNegocio/` independiente: las reglas de negocio viven en los **métodos de comportamiento de la entidad de dominio** (`TaskFlow.Domain/Entities/*.cs`, ver skill `modelo`: `Complete`, `Reopen`, `Update`, `AssignUser`…). Lo que este skill genera es el **repositorio** — la única capa que accede a `TaskFlowDbContext` — en `TaskFlow.Infrastructure/Repositories/`, con su contrato `I<Recurso>Repository` definido en `TaskFlow.Application/<Recurso>/`.
 
 ## Cuándo usar este skill
 
-- El usuario pide "crear la lógica de negocio", "generar la capa de lógica", "crear los managers / handlers"
-- Se quiere encapsular las reglas de dominio separadas de la orquestación del servicio
-- Se ha añadido un nuevo recurso al análisis y hay que crear su lógica de negocio
-- Se quiere añadir una regla de negocio nueva a un recurso existente
+- El usuario pide "crear el repositorio", "generar el acceso a datos", "crear la capa de persistencia de un recurso"
+- Se ha añadido un nuevo recurso al análisis y hay que crear su repositorio
+- Se quiere añadir una consulta o filtro nuevo sobre un recurso existente
 
 ## Prerequisitos
 
 Antes de usar este skill, deben existir:
 1. `docs/analisis-diseño.md` con la sección 4 y 5 completas. Si no existe, ejecutar primero el skill `diseño-analisis`.
-2. Los modelos de dominio en `Models/`. Si no existen, ejecutar primero el skill `modelo`.
-3. `Data/AppDbContext.cs` con los `DbSet<T>` de cada entidad. Si no existe, ejecutar primero el skill `base-de-datos`.
+2. Las entidades de dominio en `backend/src/TaskFlow.Domain/Entities/`. Si no existen, ejecutar primero el skill `modelo`.
+3. `TaskFlowDbContext` con su `DbSet<T>` y configuración Fluent API. Si no existe, ejecutar primero el skill `base-de-datos`.
 
 ## Procedimiento
 
@@ -26,147 +29,126 @@ Antes de usar este skill, deben existir:
 
 Leer los siguientes ficheros antes de generar nada:
 
-- [`docs/analisis-diseño.md`](../../docs/analisis-diseño.md) — sección 4 (modelo) y sección 5 (operaciones y reglas por endpoint)
+- [`docs/analisis-diseño.md`](../../docs/analisis-diseño.md) — sección 4 (modelo) y sección 5 (operaciones y filtros por endpoint)
 - [`.github/copilot-instructions.md`](../copilot-instructions.md) — convenciones de código del proyecto
-- Los modelos en `Models/` — para conocer las entidades y sus relaciones
+- Las entidades en `backend/src/TaskFlow.Domain/Entities/` — para conocer las entidades y sus relaciones
+- `TaskFlow.Infrastructure/Persistence/TaskFlowDbContext.cs` — para conocer los `DbSet<T>` disponibles
 
 Si `docs/analisis-diseño.md` no existe, detener y pedir al usuario que primero ejecute el skill `diseño-analisis`.
 
-### Paso 2 — Localizar el proyecto y verificar qué lógica existe
+### Paso 2 — Localizar el proyecto y verificar qué repositorios existen
 
-Buscar el fichero `.csproj` del proyecto principal (excluir proyectos de tests). La carpeta `LogicaNegocio/` siempre es relativa a ese `.csproj`.
+- El **contrato** `I<Recurso>Repository` vive en `backend/src/TaskFlow.Application/<Recurso>/` (junto a `I<Recurso>Service`, no en una subcarpeta `Repositories/`), siguiendo el patrón de `ITaskRepository.cs`.
+- La **implementación** `<Recurso>Repository` vive en `backend/src/TaskFlow.Infrastructure/Repositories/<Recurso>Repository.cs`.
 
-Ubicaciones habituales, en orden de preferencia:
-1. `src/<NombreProyecto>/LogicaNegocio/` — si hay carpeta `src/`
-2. `<NombreProyecto>/LogicaNegocio/` — si el proyecto tiene su propia subcarpeta
-3. `LogicaNegocio/` — si el `.csproj` está en la raíz del repositorio
+Si ya existen, leer su contenido antes de modificar para evitar sobreescribir cambios manuales.
 
-Una vez localizada la carpeta, comprobar qué ficheros contiene.
-Si ya existen clases de lógica, leer su contenido antes de modificar para evitar sobreescribir cambios manuales.
+### Paso 3 — Identificar las operaciones necesarias
 
-### Paso 3 — Identificar las operaciones de la sección 5
+Derivar los métodos del repositorio a partir de los endpoints de la sección 5. El repositorio expone solo **acceso a datos**, nunca DTOs:
 
-Por cada recurso de la sección 5, derivar los métodos de lógica de negocio a partir de los endpoints. Los métodos trabajan siempre con entidades de dominio (de `Models/`), no con DTOs:
-
-| Endpoint | Método de lógica |
+| Endpoint | Método del repositorio |
 |---|---|
-| `GET /api/<recurso>` | `ObtenerTodosAsync()` |
-| `GET /api/<recurso>/{id}` | `ObtenerPorIdAsync(int id)` |
-| `POST /api/<recurso>` | `CrearAsync(<Recurso> entidad)` |
-| `PUT /api/<recurso>/{id}` | `ActualizarAsync(int id, <Recurso> entidad)` |
-| `DELETE /api/<recurso>/{id}` | `EliminarAsync(int id)` |
-| `POST /api/<recurso>/{id}/<accion>` | `<Accion>Async(int id)` |
+| `GET /api/<recurso>` (con filtros) | `GetAllAsync(<Recurso>FilterRequest filter, CancellationToken ct)` |
+| `GET /api/<recurso>/{id}` | `GetByIdAsync(int id, CancellationToken ct)` |
+| `POST /api/<recurso>` | `AddAsync(<Entidad> entity, CancellationToken ct)` |
+| `DELETE /api/<recurso>/{id}` | `Remove(<Entidad> entity)` (síncrono: solo marca el estado en el `ChangeTracker`) |
+| — (siempre presente) | `SaveChangesAsync(CancellationToken ct)` |
+
+Las operaciones de actualización, completar, reabrir o asignar **no necesitan un método propio en el repositorio**: se obtiene la entidad con `GetByIdAsync`, se invoca el método de comportamiento correspondiente en la entidad (`task.Complete(now)`, `task.Update(...)`) y se persiste con `SaveChangesAsync`. Esa orquestación vive en el servicio (skill `servicio`), no en el repositorio.
 
 ### Paso 4 — Generar la interfaz e implementación por recurso
 
-Crear los ficheros `I<Recurso>Logica.cs` y `<Recurso>Logica.cs` dentro de `LogicaNegocio/`.
-
-#### Estructura obligatoria de la interfaz
+#### Contrato en `TaskFlow.Application/<Recurso>/I<Recurso>Repository.cs`
 
 ```csharp
-namespace <Namespace>.LogicaNegocio;
+using TaskFlow.Domain.Entities;
 
-public interface I<Recurso>Logica
+namespace TaskFlow.Application.<Recurso>;
+
+public interface I<Recurso>Repository
 {
-    Task<IEnumerable<<Recurso>>> ObtenerTodosAsync();
-    Task<<Recurso>?> ObtenerPorIdAsync(int id);
-    Task<<Recurso>> CrearAsync(<Recurso> entidad);
-    Task<<Recurso>?> ActualizarAsync(int id, <Recurso> entidad);
-    Task<bool> EliminarAsync(int id);
-    // Métodos adicionales según endpoints de acción del análisis
+    Task<<Entidad>?> GetByIdAsync(int id, CancellationToken cancellationToken);
+
+    Task<IReadOnlyList<<Entidad>>> GetAllAsync(Dtos.<Recurso>FilterRequest filter, CancellationToken cancellationToken);
+
+    Task AddAsync(<Entidad> entity, CancellationToken cancellationToken);
+
+    void Remove(<Entidad> entity);
+
+    Task<bool> SaveChangesAsync(CancellationToken cancellationToken);
 }
 ```
 
-#### Estructura obligatoria de la implementación
+#### Implementación en `TaskFlow.Infrastructure/Repositories/<Recurso>Repository.cs`
 
 ```csharp
-namespace <Namespace>.LogicaNegocio;
+using Microsoft.EntityFrameworkCore;
+using TaskFlow.Application.<Recurso>;
+using TaskFlow.Application.<Recurso>.Dtos;
+using TaskFlow.Domain.Entities;
+using TaskFlow.Infrastructure.Persistence;
 
-public class <Recurso>Logica : I<Recurso>Logica
+namespace TaskFlow.Infrastructure.Repositories;
+
+public class <Recurso>Repository : I<Recurso>Repository
 {
-    private readonly AppDbContext _contexto;
+    private readonly TaskFlowDbContext _dbContext;
 
-    public <Recurso>Logica(AppDbContext contexto)
+    public <Recurso>Repository(TaskFlowDbContext dbContext)
     {
-        _contexto = contexto;
+        _dbContext = dbContext;
     }
 
-    public async Task<IEnumerable<<Recurso>>> ObtenerTodosAsync()
-        => await _contexto.<Recurso>s.AsNoTracking().ToListAsync();
+    public Task<<Entidad>?> GetByIdAsync(int id, CancellationToken cancellationToken) =>
+        _dbContext.<DbSet>.FirstOrDefaultAsync(e => e.Id == id, cancellationToken);
 
-    public async Task<<Recurso>?> ObtenerPorIdAsync(int id)
-        => await _contexto.<Recurso>s.FindAsync(id);
-
-    public async Task<<Recurso>> CrearAsync(<Recurso> entidad)
+    public async Task<IReadOnlyList<<Entidad>>> GetAllAsync(<Recurso>FilterRequest filter, CancellationToken cancellationToken)
     {
-        _contexto.<Recurso>s.Add(entidad);
-        await _contexto.SaveChangesAsync();
-        return entidad;
+        var query = _dbContext.<DbSet>.AsQueryable();
+
+        // Aplicar filtros de búsqueda, estado, prioridad, categoría… según la sección 5
+
+        return await query.ToListAsync(cancellationToken);
     }
 
-    public async Task<<Recurso>?> ActualizarAsync(int id, <Recurso> entidad)
-    {
-        var existente = await _contexto.<Recurso>s.FindAsync(id);
-        if (existente is null)
-            return null;
+    public async Task AddAsync(<Entidad> entity, CancellationToken cancellationToken) =>
+        await _dbContext.<DbSet>.AddAsync(entity, cancellationToken);
 
-        // CHECKLIST: actualizar TODOS los campos modificables de la entidad.
-        // Excluir: Id, CreatedAt y otros campos de auditoría (solo lectura).
-        // Incluir: todas las propiedades escalares + FKs opcionales (nullable).
-        // Si un campo NO debe actualizarse, documentar aquí por qué.
-        await _contexto.SaveChangesAsync();
-        return existente;
-    }
+    public void Remove(<Entidad> entity) => _dbContext.<DbSet>.Remove(entity);
 
-    public async Task<bool> EliminarAsync(int id)
-    {
-        var existente = await _contexto.<Recurso>s.FindAsync(id);
-        if (existente is null)
-            return false;
-
-        _contexto.<Recurso>s.Remove(existente);
-        await _contexto.SaveChangesAsync();
-        return true;
-    }
+    public async Task<bool> SaveChangesAsync(CancellationToken cancellationToken) =>
+        await _dbContext.SaveChangesAsync(cancellationToken) >= 0;
 }
 ```
 
 #### Reglas de generación
 
-- **Namespace**: derivar del namespace raíz del `.csproj` + `.LogicaNegocio`.
-- **Inyección de dependencias**: constructor con `AppDbContext`, almacenado en campo `readonly` privado. Nunca `new` directo.
+- **Namespace del contrato**: `TaskFlow.Application.<Recurso>` (mismo namespace que `I<Recurso>Service`, sin subcarpeta `Repositories`).
+- **Namespace de la implementación**: `TaskFlow.Infrastructure.Repositories`.
+- **Inyección de dependencias**: constructor con `TaskFlowDbContext`, almacenado en campo `readonly` privado. Nunca `new` directo.
 - **`async/await`** en todos los métodos que accedan a base de datos.
-- **Trabaja con entidades de dominio**: los parámetros y retornos son tipos de `Models/`, nunca DTOs. El mapeo DTO ↔ entidad es responsabilidad del servicio.
-- **`AsNoTracking()` en consultas de solo lectura**: añadir `.AsNoTracking()` inmediatamente después del `DbSet<T>` en **todos** los métodos que solo leen datos (`ObtenerTodosAsync`, `ObtenerPorIdAsync`). Si el método usa `Include`, colocar `.AsNoTracking()` **después** de todos los `.Include()` y antes de `.ToListAsync()` / `.FirstOrDefaultAsync()`. **No** añadirlo en `CrearAsync`, `ActualizarAsync` ni `EliminarAsync` — esos métodos necesitan tracking para persistir cambios.
-- **Aquí van las reglas de negocio**: validaciones de dominio, cálculos, estados de la entidad. Por ejemplo: no se puede completar una tarea ya completada, no se puede instanciar una plantilla inactiva.
-- **Tipos de retorno nullable** (`T?`, `bool`) cuando el recurso puede no existir — el servicio decide cómo manejarlo.
-- **Sin lógica HTTP**: no conoce `ActionResult`, `StatusCode` ni nada de la capa de presentación.
-- Si `AppDbContext` **no existe aún**, generar la interfaz completa y la implementación con `// TODO: inyectar AppDbContext`, y advertir al usuario.
+- **Trabaja con entidades de dominio**: los parámetros y retornos son tipos de `TaskFlow.Domain.Entities`, nunca DTOs (salvo `<Recurso>FilterRequest`, que es un contrato de solo lectura para construir la consulta).
+- **Consultas de filtrado en `GetAllAsync`**: aplicar `Where` según los campos de `<Recurso>FilterRequest` (búsqueda con `EF.Functions.Like`, estado, prioridad, categoría…) y ordenar según el criterio del análisis (ver `TaskRepository.GetAllAsync` como referencia).
+- **Sin `AsNoTracking()` salvo que el análisis pida explícitamente consultas de solo lectura masivas**: como el servicio suele modificar la entidad tras `GetByIdAsync` (completar, reabrir, actualizar), el tracking por defecto es necesario para que `SaveChangesAsync` detecte los cambios.
+- **Sin reglas de negocio en el repositorio**: ninguna validación de dominio, ningún cálculo. Esas reglas viven en la entidad (`modelo`) o en el servicio (`servicio`).
+- **Sin lógica HTTP**: no conoce DTOs de entrada/salida distintos al filtro, ni códigos de estado.
+- Si `TaskFlowDbContext` **no existe aún**, generar la interfaz completa y advertir al usuario que ejecute primero `base-de-datos`.
 
-#### Tipos de retorno según operación
+### Paso 5 — Registrar el repositorio en `TaskFlow.Infrastructure/DependencyInjection.cs`
 
-| Situación | Tipo de retorno recomendado |
-|---|---|
-| Siempre devuelve resultados (lista) | `Task<IEnumerable<T>>` |
-| Puede no encontrar el elemento | `Task<T?>` (nullable) |
-| Operación de borrado | `Task<bool>` (true si se borró, false si no existía) |
-| Acción especial que modifica y devuelve la entidad | `Task<T?>` |
-
-### Paso 5 — Registrar la lógica en `Program.cs`
-
-Abrir `Program.cs` y añadir el registro de cada clase de lógica generada como `Scoped`:
+Añadir el registro dentro de `AddInfrastructure`:
 
 ```csharp
-builder.Services.AddScoped<I<Recurso>Logica, <Recurso>Logica>();
+services.AddScoped<I<Recurso>Repository, <Recurso>Repository>();
 ```
 
-Colocar los registros agrupados antes de `var app = builder.Build();`, junto a los registros de servicios.
-Si ya estaba registrado, no duplicar la línea.
+Si ya estaba registrado, no duplicar la línea. No registrar el repositorio en `Program.cs` directamente.
 
 ### Paso 6 — Confirmar
 
 Informar al usuario con una lista de los ficheros creados o modificados con sus rutas relativas.
 
-Si `AppDbContext` no existía, indicarlo explícitamente.
+Si `TaskFlowDbContext` no existía, indicarlo explícitamente.
 
-Como siguiente paso sugerir ejecutar el skill `servicio`, que inyectará `I<Recurso>Logica` y se encargará del mapeo con los DTOs.
+Como siguiente paso sugerir ejecutar el skill `servicio`, que inyectará `I<Recurso>Repository` y se encargará del mapeo con los DTOs.

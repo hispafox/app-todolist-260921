@@ -1,10 +1,10 @@
 ---
 name: tests-unitarios
-description: 'Crea o actualiza las pruebas unitarias del proyecto (primer nivel de la pirámide de pruebas). Genera el proyecto de tests xUnit + Moq si no existe, y crea tests para Controllers, Services y LogicaNegocio con cobertura de casos normales, edge cases y manejo de errores.'
-argument-hint: 'Clase o capa a testear (opcional, por defecto: genera tests para todo lo que no tenga)'
+description: 'Crea o actualiza las pruebas del proyecto TaskFlow (primer nivel de la pirámide de pruebas). Usa los proyectos xUnit + FluentAssertions ya existentes en backend/tests y Vitest + Testing Library en el frontend; genera tests para servicios, repositorios y endpoints con cobertura de casos normales, edge cases y manejo de errores.'
+argument-hint: 'Clase, recurso o capa a testear (opcional, por defecto: genera tests para todo lo que no tenga)'
 ---
 
-# Skill: Generar Pruebas Unitarias (xUnit + Moq)
+# Skill: Generar Pruebas (xUnit + Vitest + Playwright)
 
 ## Cuándo usar este skill
 
@@ -12,16 +12,22 @@ argument-hint: 'Clase o capa a testear (opcional, por defecto: genera tests para
 - Se ha implementado una feature nueva y faltan sus tests
 - Se quiere mejorar la cobertura de tests del proyecto
 - Se ha modificado código existente y hay que actualizar los tests
-- Se necesita configurar el proyecto de tests por primera vez
+- Se necesita añadir un test end to end para un recorrido de usuario
 
 ## Ámbito de este skill
 
-**SOLO pruebas unitarias** — primer nivel de la pirámide:
-- ✅ Tests de lógica aislada (Services, LogicaNegocio, métodos auxiliares)
-- ✅ Tests de Controllers con mocks de dependencias
+**Backend (xUnit + FluentAssertions):**
+- ✅ Tests de servicios de `TaskFlow.Application` con repositorios simulados (fakes/mocks)
+- ✅ Tests de endpoints de `TaskFlow.Api` (`WebApplicationFactory`, ver `TaskFlowApiFactory.cs`)
 - ✅ Casos normales, edge cases, validaciones y manejo de errores
-- ❌ Tests de integración (base de datos real, HTTP real)
-- ❌ Tests E2E (UI, navegador, flujo completo)
+- ❌ Tests de integración contra SQLite real, salvo los que ya cubre `TaskFlow.Api.Tests` a través de `WebApplicationFactory`
+
+**Frontend (Vitest + Testing Library):**
+- ✅ Tests de componentes y formularios (`*.test.tsx` junto al componente)
+- ✅ Tests de hooks si tienen lógica no trivial
+
+**End to end (Playwright):**
+- ✅ Recorridos completos de usuario en `frontend/e2e/`, cuando la feature afecta a varias capas a la vez
 
 ## Procedimiento
 
@@ -31,202 +37,183 @@ Leer los siguientes ficheros para entender la estructura del proyecto:
 
 - [`.github/copilot-instructions.md`](../copilot-instructions.md) — convenciones de código
 - [`docs/analisis-diseño.md`](../../docs/analisis-diseño.md) — casos de uso y reglas de negocio a cubrir
-- **Código a testear**: Controllers, Services, LogicaNegocio (según el argumento del usuario)
+- **Código a testear**: servicios y repositorios en `backend/src/TaskFlow.Application/` e `backend/src/TaskFlow.Infrastructure/`, endpoints en `backend/src/TaskFlow.Api/`, componentes en `frontend/src/components/`
 
-### Paso 2 — Verificar si existe el proyecto de tests
+### Paso 2 — Verificar el proyecto de tests correspondiente
 
-Buscar en la solución (`.sln`) si hay un proyecto con nombre `*.Tests.csproj` o similar.
+Los proyectos de tests **ya existen** — no crear proyectos nuevos salvo que falte por completo un nivel de pruebas:
 
-Si **no existe**:
-1. Preguntar al usuario el nombre que prefiere: `AppTodoList.Tests` (recomendado) o `Tests`
-2. Crear el proyecto con `dotnet new xunit`
-3. Instalar dependencias:
-   ```bash
-   dotnet add package Moq
-   dotnet add package FluentAssertions
-   dotnet add reference ../AppTodoList/AppTodoList.csproj
-   ```
-4. Añadir el proyecto a la solución:
-   ```bash
-   dotnet sln add Tests/AppTodoList.Tests.csproj
-   ```
+- `backend/tests/TaskFlow.Application.Tests/` — xUnit + FluentAssertions, organizado por recurso (`Tasks/`, `Users/`) con `Fakes/` para dobles de prueba de los repositorios.
+- `backend/tests/TaskFlow.Api.Tests/` — xUnit + `WebApplicationFactory` (`TaskFlowApiFactory.cs`), un fichero de tests por grupo de endpoints (`TaskEndpointsTests.cs`, `UserEndpointsTests.cs`).
+- `frontend/src/**/*.test.tsx` — Vitest + Testing Library, configurado en `frontend/vite.config.ts` (incluye solo `src/**/*.{test,spec}.{ts,tsx}`, excluye `e2e/**`).
+- `frontend/e2e/*.spec.ts` — Playwright, configurado en `frontend/playwright.config.ts` (canal `msedge`, sin `webServer`: las apps se arrancan a mano).
 
-Si **ya existe**: verificar que tiene las dependencias necesarias (xUnit, Moq, FluentAssertions). Si faltan, instalarlas.
+Si algún proyecto faltara por completo, crearlo siguiendo la convención de nombre y ubicación de los ya existentes (`backend/tests/TaskFlow.<Capa>.Tests`), y añadirlo a `backend/TaskFlow.slnx`.
 
-### Paso 3 — Identificar qué clases testear
+### Paso 3 — Identificar qué testear
 
-Si el usuario especificó una clase o capa concreta (p. ej. "tests para TodoService"), testear solo esa.
+Si el usuario especificó una clase, recurso o capa concreta (p. ej. "tests para TaskService"), testear solo eso.
 
-Si no especificó, **analizar el código actual** y generar tests para:
-1. **Controllers** sin tests (o con cobertura incompleta)
-2. **Services** sin tests
-3. **LogicaNegocio** sin tests
+Si no especificó, **analizar el código actual** y generar tests para lo que no tenga cobertura, en este orden de prioridad:
+1. **Servicios** de `TaskFlow.Application` (`TaskService`, `UserService`) — reglas de negocio y orquestación
+2. **Endpoints** de `TaskFlow.Api` — códigos de estado, validación, contrato de respuesta
+3. **Componentes** de `frontend/src/components/` sin test
+4. **End to end** para recorridos completos sin cobertura
 
-**Orden de prioridad**: LogicaNegocio → Services → Controllers (de más crítico a menos).
+### Paso 4 — Generar los tests de backend
 
-### Paso 4 — Generar los tests
-
-Para cada clase a testear, crear un fichero de tests en la estructura:
+#### Estructura y convenciones (`TaskFlow.Application.Tests`)
 
 ```
-Tests/
-├── Controllers/
-│   ├── TareasControllerTests.cs
-│   └── CategoriasControllerTests.cs
-├── Services/
-│   ├── TodoServiceTests.cs
-│   └── CategoriaServiceTests.cs
-└── LogicaNegocio/
-    ├── TodoLogicaTests.cs
-    └── CategoriaLogicaTests.cs
+backend/tests/TaskFlow.Application.Tests/
+├── Fakes/                       ← dobles de prueba de I<Recurso>Repository, IDateTimeProvider
+├── Tasks/
+│   └── TaskServiceTests.cs
+└── Users/
+    └── UserServiceTests.cs
 ```
-
-#### Convenciones de nomenclatura
 
 - **Fichero**: `{ClaseTesteada}Tests.cs`
 - **Clase de tests**: `{ClaseTesteada}Tests`
 - **Métodos de test**: `{MétodoTesteado}_{Escenario}_{ResultadoEsperado}`
 
 Ejemplos:
-- `ObtenerTodas_CuandoHayTareas_DevuelveLista`
-- `Crear_ConTituloVacio_LanzaValidationException`
-- `Eliminar_ConIdInexistente_DevuelveNull`
+- `GetTaskByIdAsync_CuandoExiste_DevuelveTaskDto`
+- `CreateTaskAsync_ConTituloVacio_LanzaArgumentException`
+- `DeleteTaskAsync_ConIdInexistente_DevuelveFalse`
 
 #### Estructura de cada test (patrón AAA)
 
 ```csharp
 [Fact]
-public async Task ObtenerPorId_CuandoExiste_DevuelveTarea()
+public async Task GetTaskByIdAsync_CuandoExiste_DevuelveTaskDto()
 {
     // Arrange
-    var mockLogica = new Mock<ITodoLogica>();
-    mockLogica.Setup(x => x.ObtenerPorIdAsync(1))
-              .ReturnsAsync(new TodoItem { Id = 1, Title = "Test" });
-    var service = new TodoService(mockLogica.Object);
+    var repository = new FakeTaskRepository();
+    var task = new TaskItem("Test", null, TaskPriority.Medium, null, null, null, DateTime.UtcNow);
+    repository.Seed(task);
+    var service = new TaskService(repository, new FakeUserRepository(), new FakeDateTimeProvider());
 
     // Act
-    var resultado = await service.ObtenerPorIdAsync(1);
+    var result = await service.GetTaskByIdAsync(task.Id, CancellationToken.None);
 
     // Assert
-    resultado.Should().NotBeNull();
-    resultado.Title.Should().Be("Test");
+    result.Should().NotBeNull();
+    result!.Title.Should().Be("Test");
+}
+```
+
+**Mockear/simular:**
+- `I<Recurso>Repository` — usar los fakes de `Fakes/` si ya existen (más simples de mantener que Moq para este proyecto); si no hay ninguno para el recurso, crear uno siguiendo el mismo patrón.
+- `IDateTimeProvider` — fake con una fecha fija para aserciones deterministas.
+
+**Verificar:**
+- Mapeo correcto entidad → DTO (`ToDto()`)
+- Invocación correcta de los métodos de comportamiento de la entidad (`Complete`, `Reopen`, `Update`, `AssignUser`)
+- Manejo de casos `null`/no encontrado
+- Propagación de `NotFoundException`/`ConflictException` cuando corresponda
+
+#### Estructura y convenciones (`TaskFlow.Api.Tests`)
+
+```
+backend/tests/TaskFlow.Api.Tests/
+├── TaskFlowApiFactory.cs        ← WebApplicationFactory<Program> compartida
+├── TaskEndpointsTests.cs
+└── UserEndpointsTests.cs
+```
+
+Usar `TaskFlowApiFactory` (ya existente) para levantar la API en memoria y golpear los endpoints reales con `HttpClient`, verificando código de estado HTTP y forma del cuerpo de respuesta:
+
+```csharp
+[Fact]
+public async Task CreateTask_ConDatosValidos_Devuelve201()
+{
+    // Arrange
+    var client = _factory.CreateClient();
+    var request = new CreateTaskRequest("Nueva tarea", null, 2, null, null, null);
+
+    // Act
+    var response = await client.PostAsJsonAsync("/api/tasks", request);
+
+    // Assert
+    response.StatusCode.Should().Be(HttpStatusCode.Created);
 }
 ```
 
 #### Casos a cubrir SIEMPRE
 
-Para **cada método público**:
+Para **cada método público de servicio o endpoint**:
 
 1. **Caso feliz** — entrada válida, resultado esperado
 2. **Edge cases** — límites, valores extremos, colecciones vacías
-3. **Validaciones** — entrada inválida, excepciones esperadas
-4. **Null/no encontrado** — cuando aplique (búsqueda por ID inexistente)
-5. **Manejo de errores** — excepciones de dependencias propagadas correctamente
+3. **Validaciones** — entrada inválida, `400`/`ValidationProblem` esperado
+4. **Null/no encontrado** — `404` cuando aplique
+5. **Manejo de errores** — `NotFoundException`/`ConflictException` propagadas al código HTTP correcto
 
 #### Reglas de implementación
 
-- **Todo en castellano**: nombres de variables, comentarios, mensajes de assert
-- **Async/await**: todos los tests de métodos async deben ser `async Task`
-- **Mocks con Moq**: mockear todas las dependencias inyectadas
-- **FluentAssertions**: usar `.Should()` en lugar de `Assert.Equal()`
-- **Un assert por concepto**: si hay múltiples asserts, que sean del mismo concepto lógico
-- **Nombres descriptivos**: el nombre del test debe contar la historia completa
-- **No lógica compleja en tests**: si un test necesita un bucle o condicional, dividirlo en varios tests
+- **Nombres de tests, variables y mensajes de assert en castellano**; los identificadores de producción que se referencian (`TaskService`, `TaskDto`…) se mantienen en inglés.
+- **Async/await**: todos los tests de métodos async deben ser `async Task`.
+- **FluentAssertions**: usar `.Should()` en lugar de `Assert.Equal()`.
+- **Un assert por concepto**: si hay múltiples asserts, que sean del mismo concepto lógico.
+- **No lógica compleja en tests**: si un test necesita un bucle o condicional, dividirlo en varios tests.
 
-#### Tests de Controllers
+### Paso 5 — Generar los tests de frontend (Vitest + Testing Library)
 
-**Mockear**:
-- Services inyectados (p. ej. `ITodoService`)
-- `HttpContext` si se necesita (usuario autenticado, claims, etc.)
+Crear o actualizar `<Componente>.test.tsx` junto al componente en `frontend/src/components/`, siguiendo el patrón de `TaskForm.test.tsx`, `TaskItem.test.tsx` o `TaskList.test.tsx`:
 
-**Verificar**:
-- Código de estado HTTP correcto (`200 OK`, `201 Created`, `404 NotFound`, `400 BadRequest`)
-- Estructura del objeto devuelto (DTO correcto)
-- Llamadas a los services con los parámetros esperados
+- Renderizar el componente con `render()` de Testing Library.
+- Interactuar con `userEvent` (no `fireEvent` salvo necesidad puntual).
+- Aserciones con `screen.getByRole`/`getByLabelText` — priorizar selectores accesibles sobre `data-testid`.
+- Mockear los hooks de TanStack Query o las funciones de `api/` según lo que ya haga el test existente del mismo recurso.
 
-Ejemplo:
-```csharp
-[Fact]
-public async Task Crear_ConDatosValidos_Devuelve201Created()
-{
-    // Arrange
-    var mockService = new Mock<ITodoService>();
-    var controller = new TareasController(mockService.Object);
-    var dto = new CrearTareaDto { Title = "Nueva tarea" };
+### Paso 6 — Generar los tests end to end (Playwright)
 
-    mockService.Setup(x => x.CrearAsync(dto))
-               .ReturnsAsync(new TareaDto { Id = 1, Title = "Nueva tarea" });
+Si la feature afecta a un recorrido completo (crear, editar, completar, eliminar…), añadir un test en `frontend/e2e/tasks.spec.ts` o un fichero `.spec.ts` nuevo si es un recurso distinto de tareas.
 
-    // Act
-    var resultado = await controller.Crear(dto);
+- Cada test debe ser **autocontenido**: generar un título único (p. ej. con timestamp) y limpiar sus propios datos al final.
+- No depender de datos sembrados por otros tests ni del orden de ejecución.
 
-    // Assert
-    resultado.Should().BeOfType<CreatedAtActionResult>();
-    var created = resultado as CreatedAtActionResult;
-    created.StatusCode.Should().Be(201);
-}
-```
+### Paso 7 — Ejecutar los tests
 
-#### Tests de Services
-
-**Mockear**:
-- LogicaNegocio inyectada (p. ej. `ITodoLogica`)
-- Cualquier otra dependencia externa
-
-**Verificar**:
-- Mapeo correcto entre entidades y DTOs
-- Llamadas a la lógica de negocio con parámetros correctos
-- Manejo de casos null/no encontrado
-- Propagación correcta de excepciones
-
-#### Tests de LogicaNegocio
-
-**Mockear**:
-- `AppDbContext` (con `DbContextOptions<AppDbContext>` en memoria, o mock si es complejo)
-- Cualquier dependencia externa (servicios, repositorios)
-
-**Verificar**:
-- Reglas de negocio aplicadas correctamente
-- Validaciones de dominio
-- Interacciones con la base de datos (si se usa DbContext en memoria)
-- Excepciones de negocio lanzadas en casos inválidos
-
-### Paso 5 — Ejecutar los tests
-
-Compilar y ejecutar los tests para verificar que todo funciona:
+**No arrancar servidores ni aplicaciones** — el desarrollador los lanza manualmente. Ejecutar solo los comandos de test:
 
 ```bash
-dotnet build Tests/AppTodoList.Tests.csproj
-dotnet test Tests/AppTodoList.Tests.csproj
+# Backend
+cd backend
+dotnet test
+
+# Frontend
+cd frontend
+npm run test
+npx tsc -b --noEmit
+
+# End to end (requiere que el desarrollador tenga backend y frontend ya corriendo)
+npm run test:e2e
 ```
 
 **Si fallan tests**:
 1. Revisar el código de producción (puede haber un bug real)
-2. Ajustar los mocks (puede que el test no refleje el comportamiento real)
+2. Ajustar los fakes/mocks (puede que el test no refleje el comportamiento real)
 3. Corregir el test (puede que la expectativa sea incorrecta)
 
-**No commitear tests que fallen** — el build debe estar en verde.
+**No dar la tarea por terminada con tests en rojo** — el build y los tests deben quedar en verde.
 
-### Paso 6 — Reportar cobertura (opcional)
+### Paso 8 — Reportar cobertura (opcional)
 
-Si el usuario lo pide, instalar y ejecutar coverlet:
+Si el usuario lo pide, usar `dotnet test /p:CollectCoverage=true` con `coverlet.collector` (ya referenciado en los proyectos de test si aplica) o `npm run test -- --coverage` en el frontend.
 
-```bash
-dotnet add package coverlet.collector
-dotnet test /p:CollectCoverage=true /p:CoverageReportsFormat=lcov
-```
+Informar al usuario del % de cobertura alcanzado por capa. El objetivo del proyecto es un mínimo del 80%, sin sacrificar la calidad de las aserciones.
 
-Informar al usuario del % de cobertura alcanzado por capa.
-
-### Paso 7 — Confirmar
+### Paso 9 — Confirmar
 
 Informar al usuario:
 - Ficheros de tests creados con sus rutas relativas
-- Número de tests añadidos por clase
-- Resultado de `dotnet test` (todos pasan / X fallidos)
+- Número de tests añadidos por clase o componente
+- Resultado de `dotnet test` / `npm run test` (todos pasan / X fallidos)
 - % de cobertura si se calculó
 
-Si algún test requiere configuración adicional (p. ej. base de datos en memoria, ficheros de configuración para tests), indicarlo explícitamente.
+Si algún test requiere configuración adicional (p. ej. `WebApplicationFactory` con configuración distinta, mocks de `IDateTimeProvider`), indicarlo explícitamente.
 
 ---
 
@@ -237,11 +224,11 @@ Si algún test requiere configuración adicional (p. ej. base de datos en memori
 @tests-unitarios
 
 # Tests solo para una clase
-@tests-unitarios TodoService
+@tests-unitarios TaskService
 
 # Tests de toda una capa
-@tests-unitarios Services/
-@tests-unitarios LogicaNegocio/
+@tests-unitarios backend/src/TaskFlow.Application/
+@tests-unitarios backend/src/TaskFlow.Infrastructure/Repositories/
 ```
 
 ---
@@ -258,7 +245,6 @@ Si algún test requiere configuración adicional (p. ej. base de datos en memori
 ## Integración con otros skills
 
 Este skill puede ser invocado:
+- **Por `nueva-feature`**: al implementar una feature, invoca este skill al final (Paso 11)
 - **Por el planificador**: al generar un plan de feature, puede incluir este skill en la lista
-- **Por el desarrollador**: al implementar una feature, debe invocar este skill al final
-- **Por el verificador**: puede sugerir añadir tests si la cobertura es baja
-- **Por el auditor**: puede reportar falta de tests como hallazgo y recomendar este skill
+- **Manualmente**: cuando se detecta código sin tests o se quiere mejorar la cobertura

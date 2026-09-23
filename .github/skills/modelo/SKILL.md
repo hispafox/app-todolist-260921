@@ -27,33 +27,25 @@ Si `docs/analisis-diseño.md` no existe, detener y pedir al usuario que primero 
 
 ### Paso 2 — Localizar el proyecto y verificar si ya existen los modelos
 
-Buscar el fichero `.csproj` del proyecto principal (excluir proyectos de tests). La carpeta `Models/` siempre es relativa a ese `.csproj`, no a la raíz del repositorio.
+Las entidades viven siempre en `backend/src/TaskFlow.Domain/Entities/`, y los enums en `backend/src/TaskFlow.Domain/Enums/`. No crear una carpeta `Models/` ni ubicar entidades fuera de `TaskFlow.Domain`.
 
-Ubicaciones habituales, en orden de preferencia:
-1. `src/<NombreProyecto>/Models/` — si hay carpeta `src/`
-2. `<NombreProyecto>/Models/` — si el proyecto tiene su propia subcarpeta
-3. `Models/` — si el `.csproj` está en la raíz del repositorio
+Comprobar qué ficheros contiene ya `TaskFlow.Domain/Entities/` (p. ej. `TaskItem.cs`, `AppUser.cs`).  
+Si ya existen entidades, leer su contenido antes de modificar para evitar sobreescribir cambios manuales.
 
-Una vez localizada la carpeta correcta, comprobar qué ficheros contiene.  
-Si ya existen modelos, leer su contenido antes de modificar para evitar sobreescribir cambios manuales.
+### Paso 3 — Crear o actualizar las entidades
 
-### Paso 3 — Crear o actualizar los modelos
-
-Crear la carpeta `Models/` si no existe. Generar o actualizar **cada entidad** definida en la sección 4 del análisis.
+Generar o actualizar **cada entidad** definida en la sección 4 del análisis dentro de `TaskFlow.Domain/Entities/`.
 
 #### Reglas de generación
 
-- **Namespace**: `AppTodoList.Models`
-- **Idioma**: nombres de clases, propiedades y métodos en **castellano**, excepto las propiedades que el análisis defina explícitamente en inglés (`Id`, `Title`, `IsCompleted`, `CreatedAt`).
-- **Valores por defecto**: asignar siempre valores por defecto a las propiedades para evitar warnings de nullability:
-  - `string` → `= string.Empty`
-  - `bool` → `= false`
-  - Tipos nullable (`int?`, `DateTime?`, enum nullable) → sin valor por defecto (ya son nullable)
-- **Claves primarias**: propiedad `Id` de tipo `int`, autogenerada por EF Core.
-- **Relaciones de navegación**: incluirlas como propiedades nullable con el tipo de la entidad relacionada.
-- **Sin anotaciones de datos** (`[Required]`, `[MaxLength]`…): las restricciones se configuran en `AppDbContext` con Fluent API, no en el modelo.
-- **Sin lógica de negocio** en las entidades: solo propiedades, sin métodos.
-- **Enums** en fichero propio dentro de `Models/`.
+- **Namespace**: `TaskFlow.Domain.Entities` (enums en `TaskFlow.Domain.Enums`).
+- **Idioma**: nombres de clases, propiedades y métodos siempre en **inglés** (p. ej. `TaskItem`, `Title`, `IsCompleted`, `AssignUser`, `Complete`) — es el contrato que consume la API y el frontend. Los comentarios del código pueden ir en castellano.
+- **Encapsulación con comportamiento**: propiedades con `private set` (o `internal set` para `Id`, ver `TaskItem.Id`), sin setters públicos. El estado solo cambia a través de métodos de la propia entidad.
+- **Constructor privado sin parámetros** para EF Core (`private TaskItem() { }`), y un **constructor público** que recibe los campos obligatorios y aplica las reglas de validación (p. ej. `SetTitle` lanza `ArgumentException` si el título está vacío).
+- **Métodos de comportamiento** en vez de setters sueltos: `Update(...)`, `Complete(DateTime now)`, `Reopen(DateTime now)`, `AssignUser(int? userId, DateTime now)`. Cada método actualiza también `UpdatedAt` cuando corresponda.
+- **Sin anotaciones de datos** (`[Required]`, `[MaxLength]`…): las restricciones de columna se configuran en `TaskFlow.Infrastructure/Persistence/Configurations/` con Fluent API (skill `base-de-datos`); las reglas de entrada de la API se validan con FluentValidation (skill `validaciones`).
+- **Relaciones**: claves foráneas opcionales como `int?` (p. ej. `AssignedUserId`); no añadir propiedades de navegación salvo que el análisis las requiera explícitamente.
+- **Enums** en fichero propio dentro de `TaskFlow.Domain/Enums/` (p. ej. `TaskPriority`, `TaskStatusFilter`), con valores numéricos explícitos si el análisis los define (`Low = 1, Medium = 2, High = 3`).
 
 #### Entidades a generar
 
@@ -65,28 +57,28 @@ Respetar el orden de generación según dependencias: los enums primero, luego l
 
 Comprobar qué elementos relacionados existen en el proyecto. **Si ninguno existe, omitir este paso por completo** y pasar directamente al Paso 5.
 
-Solo actuar sobre los elementos que ya estén presentes en el código. No crear DTOs, ViewModels ni configuración de DbContext si no existían antes.
+Solo actuar sobre los elementos que ya estén presentes en el código. No crear DTOs, mappers ni configuración de `TaskFlowDbContext` si no existían antes — eso lo hacen los skills `dto` y `base-de-datos`.
 
-#### DTOs (`Dtos/` o `Models/Dtos/`)
+#### DTOs (`backend/src/TaskFlow.Application/<Recurso>/Dtos/`)
 
 Si existen DTOs:
 - Añadir o eliminar las propiedades que correspondan al cambio del modelo.
-- No incluir propiedades de navegación ni claves foráneas internas: los DTOs exponen solo los datos necesarios para la API.
+- No incluir propiedades de navegación ni claves foráneas internas salvo que el contrato de la API las necesite (p. ej. `assignedUserId` sí se expone porque el cliente lo usa).
 
-#### DbContext (`Data/AppDbContext.cs`)
+#### DbContext (`backend/src/TaskFlow.Infrastructure/Persistence/TaskFlowDbContext.cs`)
 
 Si el fichero existe:
 - Añadir el `DbSet<T>` de la nueva entidad si no estuviera.
-- Actualizar la configuración Fluent API en `OnModelCreating` para reflejar los cambios.
+- Crear o actualizar su `IEntityTypeConfiguration<T>` en `Persistence/Configurations/` para reflejar los cambios (skill `base-de-datos`).
 
 #### Migraciones
 
-Si existe la carpeta `Migrations/` (EF Core ya está configurado):
-- **No crear la migración automáticamente.** Indicar al usuario el comando exacto a ejecutar:
+Si existe la carpeta `Persistence/Migrations/` (EF Core ya está configurado):
+- **No crear la migración ni aplicarla automáticamente.** Indicar al usuario el comando exacto a ejecutar:
   ```
-  dotnet ef migrations add <NombreDescriptivo>
-  dotnet ef database update
+  dotnet ef migrations add <NombreDescriptivo> --project src/TaskFlow.Infrastructure --startup-project src/TaskFlow.Api --output-dir Persistence/Migrations
   ```
+  La aplicación de la migración (`dotnet ef database update`) solo se ejecuta con autorización explícita del usuario.
 
 ### Paso 5 — Confirmar
 

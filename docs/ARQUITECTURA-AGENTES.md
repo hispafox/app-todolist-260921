@@ -16,12 +16,15 @@ flowchart LR
     U -.->|"@orquestador issue #N"| O
     U -.->|"@generador-tests-unitarios"| T[🧪 Generador Tests<br/>agente especialista]
     O -->|agent| P[🔎 Planificador<br/>subagente]
+    P -->|validar y pedir aprobacion| U
+    P -->|agent tras autorizacion| I[Publicador de issue]
     O -->|agent| D[⚙️ Desarrollador<br/>subagente]
     O -->|agent| V[✅ Verificador<br/>subagente]
     O -->|git| GH[(🐙 Git<br/>commit + push)]
     O -.->|github MCP| GHI[(🐙 GitHub<br/>issues + PRs)]
 
     P -.escribe.-> PL[/docs/plan-*.md/]
+    I -.publica.-> GHI
     D -.edita.-> C[/*.cs/]
     V -.lee + dotnet build.-> C
     T -.genera.-> TS[/Tests/**Tests.cs/]
@@ -43,7 +46,8 @@ El orquestador es el único que toca Git. Los tres especialistas ni se enteran d
 | Rol | Qué es en GitHub Copilot | ¿Toca código? | Herramientas | Lo que deja |
 |-----|---------------------|---------------|--------------|------------|
 | **Orquestador** | Agente `@orquestador-apptodolist` | No | `agent, execute, read, search` | Commit + resumen |
-| **Planificador** | Agente `@planificador-apptodolist` | Solo el plan `.md` | `read, search, edit` | `docs/plan-<slug>.md` |
+| **Planificador** | Agente `@planificador-apptodolist` | Solo el plan `.md` | `read, search, edit, agent` | `docs/plan-<slug>.md` o resultado del issue |
+| **Publicador de issue** | Subagente `creador-issue-desde-plan` | No | `read, execute, github` | Issue creado o duplicado identificado |
 | **Desarrollador** | Agente `@desarrollador-apptodolist` | Sí | `read, search, edit, execute` | Código que compila |
 | **Verificador** | Agente `@verificador-apptodolist` | No | `read, search, execute` | Veredicto APROBADO / REVISAR |
 | **Generador de tests** | Agente `@generador-tests-unitarios` | Sí (solo tests) | `read, search, edit, execute` | Tests unitarios (xUnit + Moq) |
@@ -51,6 +55,10 @@ El orquestador es el único que toca Git. Los tres especialistas ni se enteran d
 | **Documentador de usuario** | Agente `@documentador-usuario` | No | `read, search, edit, terminal` | Manual de usuario (.md/.docx/.pdf) |
 
 Fíjate en una cosa: el planificador y el verificador **no escriben código de producción**. El planificador solo deja un `.md`; el verificador solo lee y compila. Es la versión software del principio de que quien diseña el examen no debería ser quien lo aprueba. El que verifica no arregla — señala. Y el que arregla es siempre el desarrollador.
+
+El agente planificador analiza la petición, consulta el PRD, el código relacionado y `docs/skills-orquestacion.md`, y genera o actualiza un único documento `docs/plan-<slug>.md`. También consulta los `SKILL.md` aplicables para dejar trazados sus prerrequisitos, artefactos y orden de ejecución posterior. El documento deja trazados el alcance por capas, los archivos y símbolos afectados, la secuencia de implementación, las pruebas, los riesgos y lo que queda fuera de alcance. No ejecuta comandos ni modifica código de producción.
+
+Antes de ofrecer la publicación, el planificador valida la estructura, la trazabilidad con el repositorio y el PRD, el orden de skills, las verificaciones y las decisiones pendientes. Solo presenta para aprobación un plan con estado `PLAN VALIDADO`. El usuario debe aprobarlo y autorizar expresamente la creación del issue; entonces el planificador relee y revalida el archivo. Si cambió, solicita una aprobación nueva. Si sigue válido, llama a `creador-issue-desde-plan`, que verifica el remoto, busca duplicados y crea un único issue con el contenido completo del plan.
 
 ---
 
@@ -162,7 +170,7 @@ El `@auditor-calidad` está **fuera del ciclo de desarrollo normal**. No lo llam
 
 1. **Compila el proyecto** — si falla, veredicto automático: RECHAZADO
 2. **Ejecuta tests** — anota cuántos pasan/fallan
-3. **Audita arquitectura de capas** — verifica que Controllers → Services → LogicaNegocio → DbContext
+3. **Audita arquitectura de capas** — verifica que Endpoints (`TaskFlow.Api`) → Servicios (`TaskFlow.Application`) → Repositorios (`TaskFlow.Infrastructure`) → `TaskFlowDbContext`
 4. **Busca code smells** — métodos largos, clases God, duplicación, nomenclatura inconsistente
 5. **Analiza async/await** — detecta `.Result`, `.Wait()`, `async void`, fire-and-forget
 6. **Revisa EF Core** — N+1 queries, falta de `AsNoTracking()`, `SaveChangesAsync()` repetido
@@ -193,8 +201,8 @@ El auditor **busca problemas, no los justifica**. Su trabajo es ser despiadado. 
 **Ejemplo de invocación:**
 
 ```
-@auditor-calidad Controllers/
-@auditor-calidad Services/TareasService.cs
+@auditor-calidad backend/src/TaskFlow.Api/
+@auditor-calidad backend/src/TaskFlow.Application/Tasks/TaskService.cs
 @auditor-calidad
 ```
 
@@ -209,15 +217,15 @@ El `@generador-tests-unitarios` es el agente responsable de crear y mantener las
 ### Ámbito de responsabilidad
 
 **SOLO pruebas unitarias:**
-- ✅ Tests de lógica aislada (Services, LogicaNegocio, métodos auxiliares)
-- ✅ Tests de Controllers con mocks de dependencias
+- ✅ Tests de servicios (`TaskFlow.Application`) con repositorios simulados
+- ✅ Tests de endpoints (`TaskFlow.Api`) con `WebApplicationFactory`
 - ✅ Casos normales, edge cases, validaciones y manejo de errores
-- ❌ Tests de integración (base de datos real, HTTP real)
-- ❌ Tests E2E (UI, navegador, flujo completo)
+- ❌ Tests de integración contra SQLite real (salvo los que ya cubre `TaskFlow.Api.Tests`)
+- ❌ Tests E2E (UI, navegador, flujo completo — eso lo cubre Playwright en `frontend/e2e/`)
 
 ### Qué hace
 
-1. **Verifica el proyecto de tests** — crea `AppTodoList.Tests` si no existe, con xUnit + Moq + FluentAssertions
+1. **Verifica el proyecto de tests** — usa `backend/tests/TaskFlow.Application.Tests` y `backend/tests/TaskFlow.Api.Tests`, ya existentes, con xUnit + FluentAssertions
 2. **Analiza el código de producción** — identifica qué clases tienen tests y cuáles no
 3. **Genera los tests faltantes** — crea ficheros `{ClaseTesteada}Tests.cs` en `Tests/`
 4. **Sigue el patrón AAA** — Arrange-Act-Assert en todos los tests
@@ -228,16 +236,14 @@ El `@generador-tests-unitarios` es el agente responsable de crear y mantener las
 ### Estructura de tests generados
 
 ```
-Tests/
-├── Controllers/
-│   ├── TareasControllerTests.cs
-│   └── CategoriasControllerTests.cs
-├── Services/
-│   ├── TodoServiceTests.cs
-│   └── CategoriaServiceTests.cs
-└── LogicaNegocio/
-    ├── TodoLogicaTests.cs
-    └── CategoriaLogicaTests.cs
+backend/tests/
+├── TaskFlow.Application.Tests/
+│   ├── Fakes/
+│   ├── Tasks/TaskServiceTests.cs
+│   └── Users/UserServiceTests.cs
+└── TaskFlow.Api.Tests/
+    ├── TaskEndpointsTests.cs
+    └── UserEndpointsTests.cs
 ```
 
 ### Convenciones de nomenclatura
@@ -249,20 +255,19 @@ Tests/
 Ejemplo:
 ```csharp
 [Fact]
-public async Task ObtenerPorId_CuandoExiste_DevuelveTarea()
+public async Task GetTaskByIdAsync_CuandoExiste_DevuelveTaskDto()
 {
     // Arrange
-    var mockLogica = new Mock<ITodoLogica>();
-    mockLogica.Setup(x => x.ObtenerPorIdAsync(1))
-              .ReturnsAsync(new TodoItem { Id = 1, Title = "Test" });
-    var service = new TodoService(mockLogica.Object);
+    var repository = new FakeTaskRepository();
+    repository.Seed(new TaskItem("Test", null, TaskPriority.Medium, null, null, null, DateTime.UtcNow));
+    var service = new TaskService(repository, new FakeUserRepository(), new FakeDateTimeProvider());
 
     // Act
-    var resultado = await service.ObtenerPorIdAsync(1);
+    var resultado = await service.GetTaskByIdAsync(1, CancellationToken.None);
 
     // Assert
     resultado.Should().NotBeNull();
-    resultado.Title.Should().Be("Test");
+    resultado!.Title.Should().Be("Test");
 }
 ```
 
@@ -280,10 +285,10 @@ public async Task ObtenerPorId_CuandoExiste_DevuelveTarea()
 @generador-tests-unitarios
 
 # Tests solo para una clase
-@generador-tests-unitarios TodoService
+@generador-tests-unitarios TaskService
 
 # Tests de toda una capa
-@generador-tests-unitarios Services/
+@generador-tests-unitarios backend/src/TaskFlow.Application/
 ```
 
 ### Integración con el flujo de desarrollo
@@ -386,7 +391,7 @@ Formato: `feature/issue-<N>-<slug>` donde `<slug>` es kebab-case del título del
 ```
 feat: añadir índices en FKs
 
-Implementa validación de referencias foráneas en TodoItems.
+Implementa validación de referencias foráneas en Tasks.
 Ver plan completo en docs/plan-indices-fks.md.
 
 Closes #15
@@ -400,7 +405,7 @@ El orquestador usa `.github/PULL_REQUEST_TEMPLATE.md` para estructurar el cuerpo
 
 - **Issue relacionado:** `Closes #N` (vinculación automática)
 - **Plan de implementación:** Link a `docs/plan-<slug>.md`
-- **Cambios realizados:** Lista de ficheros modificados agrupados por capa (Models, DTOs, Controllers, etc.)
+- **Cambios realizados:** Lista de ficheros modificados agrupados por capa (Domain, Application, Infrastructure, Api, frontend)
 - **Verificación:** Estado del verificador (iteraciones, dotnet build)
 - **Checklist pre-merge:** Items para el revisor humano
 
@@ -466,9 +471,10 @@ El orquestador usa este skill internamente en Modo Issue.
 
 ```mermaid
 flowchart TD
-    ROOT[AppTodoList/]
+    ROOT[app-todolist-260921/]
     ROOT --> DOTG[.github/]
-    ROOT --> SRC[*.cs]
+    ROOT --> BACK[backend/src/]
+    ROOT --> FRONT[frontend/src/]
     ROOT --> DOCS[docs/]
 
     DOTG --> AG[agents/]
@@ -481,11 +487,10 @@ flowchart TD
     AG --> A5[auditor-calidad.agent.md]
     AG --> A6[documentador-usuario.agent.md]
 
-    SRC --> M[Models/]
-    SRC --> D[Dtos/]
-    SRC --> L[LogicaNegocio/]
-    SRC --> S[Services/]
-    SRC --> C[Controllers/]
+    BACK --> DOM[TaskFlow.Domain/Entities/]
+    BACK --> APP[TaskFlow.Application/*/Dtos/]
+    BACK --> INF[TaskFlow.Infrastructure/Repositories/]
+    BACK --> API[TaskFlow.Api/*/*Endpoints.cs]
 
     DOCS --> PL[plan-*.md<br/>generados por el planificador]
     DOCS --> AD[analisis-diseño.md]

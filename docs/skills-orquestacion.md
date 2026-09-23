@@ -1,4 +1,4 @@
-# Orquestación de Skills — AppTodoList
+# Orquestación de Skills — TaskFlow
 
 Este documento describe el conjunto de skills disponibles en el proyecto, su propósito, las dependencias entre ellos y cómo se coordinan para construir la aplicación de forma incremental.
 
@@ -10,14 +10,11 @@ Los **skills** son las herramientas. Los **agentes** son quienes las usan.
 
 ```mermaid
 flowchart TD
-    U[Usuario] --> O[Orquestador]
-    O --> P[Planificador]
-    O --> D[Desarrollador]
-    O --> V[Verificador]
-
+    U[Usuario] --> P[Planificador]
     P --> PLAN[docs/plan-slug.md]
-    D --> PLAN
-    D --> SKILLS[Skills]
+    P -->|tras aprobacion| I[creador-issue-desde-plan]
+
+    U -.->|agente de codificación| SKILLS[Skills]
 
     SKILLS --> SK1[diseno-analisis]
     SKILLS --> SK2[modelo]
@@ -29,31 +26,32 @@ flowchart TD
     SKILLS --> SK8[controlador]
     SKILLS --> SK9[frontend-react]
 
-    D --> CODE[Codigo]
-    V --> CODE
+    SKILLS --> CODE[Código en backend/ y frontend/]
 ```
 
-Un skill no decide cuándo actuar: describe **cómo** se hace algo. El agente es quien lee la petición, elige los skills y los ejecuta en orden. Por eso el catálogo de abajo se lee siempre desde el agente que lo va a usar.
+Un skill no decide cuándo actuar: describe **cómo** se hace algo dentro de la arquitectura real de TaskFlow (`TaskFlow.Domain`, `TaskFlow.Application`, `TaskFlow.Infrastructure`, `TaskFlow.Api`). El agente o el desarrollador es quien lee la petición, elige los skills y los ejecuta en orden. Por eso el catálogo de abajo se lee siempre desde quien lo va a usar.
 
 ---
 
 ## 1. Catálogo de skills
 
-| Skill | Carpeta generada | Responsabilidad |
+| Skill | Ubicación real generada | Responsabilidad |
 |---|---|---|
-| `diseño-analisis` | `docs/` | Documento de análisis y diseño — fuente de verdad de todo lo demás |
+| `diseño-analisis` | `docs/analisis-diseño.md` | Documento de análisis y diseño — fuente de verdad de todo lo demás |
 | `documento-funcional-arquitectura` | `docs/` | Documento funcional en Markdown con la arquitectura ilustrada en diagramas Mermaid (capas, flujo de petición, modelo de datos, carpetas) |
-| `modelo` | `Models/` | Entidades de dominio (clases C#) |
-| `dto` | `Dtos/` | Contratos de entrada y salida de la API |
-| `base-de-datos` | `Data/` | AppDbContext, Fluent API, migraciones, seeder |
-| `logica-negocio` | `LogicaNegocio/` | Reglas de negocio + acceso a `DbContext` |
-| `validaciones` | `Dtos/` + `LogicaNegocio/` | Anotaciones de validación y reglas de dominio |
-| `servicio` | `Services/` | Orquestación: mapeo DTO ↔ entidad, delegación a lógica |
-| `controlador` | `Controllers/` | Capa HTTP: recibe peticiones, llama al servicio, devuelve respuesta |
+| `modelo` | `backend/src/TaskFlow.Domain/Entities/` + `Enums/` | Entidades de dominio con comportamiento (métodos de transición de estado) y enums |
+| `dto` | `backend/src/TaskFlow.Application/<Recurso>/Dtos/` | Contratos de entrada y salida de la API (`Create*Request`, `Update*Request`, `*Dto`, `*FilterRequest`) |
+| `base-de-datos` | `backend/src/TaskFlow.Infrastructure/Persistence/` | `TaskFlowDbContext`, configuraciones Fluent API (`Configurations/`), migraciones, `DbInitializer` |
+| `logica-negocio` | `backend/src/TaskFlow.Application/<Recurso>/I<Recurso>Repository.cs` + `backend/src/TaskFlow.Infrastructure/Repositories/` | Repositorio: acceso a datos vía `TaskFlowDbContext`, sin reglas de negocio (esas viven en la entidad) |
+| `validaciones` | `TaskFlow.Application/<Recurso>/Validators/` + entidad + servicio | Reglas de FluentValidation, invariantes de la entidad y comprobación de FKs en el servicio |
+| `servicio` | `backend/src/TaskFlow.Application/<Recurso>/I<Recurso>Service.cs` + `*Service.cs` + `*Mapper.cs` | Orquestación: invoca la entidad, delega en el repositorio, mapea a DTOs |
+| `controlador` | `backend/src/TaskFlow.Api/<Recurso>/<Recurso>Endpoints.cs` | Grupos de Minimal APIs: recibe peticiones, valida, llama al servicio, devuelve `IResult` |
 | `ui-ux-pro-max` | — | Patrones de diseño y accesibilidad. Se consulta **antes** del frontend; si solo trae la ficha de catálogo, se sigue con los principios básicos y se dice |
-| `frontend-react` | `frontend/` | Tipos TypeScript espejo de los DTOs, servicios fetch, páginas y componentes |
+| `frontend-react` | `frontend/src/{types,api,hooks,schemas,components}` | Tipos TypeScript espejo de los DTOs, clientes fetch, hooks de TanStack Query, schemas Zod y componentes |
+| `tests-unitarios` | `backend/tests/TaskFlow.Application.Tests`, `backend/tests/TaskFlow.Api.Tests`, `frontend/src/**/*.test.tsx`, `frontend/e2e/` | Pruebas xUnit + FluentAssertions, Vitest + Testing Library y Playwright |
 | `nueva-feature` | _las que toque_ | **Detecta el alcance** de una petición en lenguaje natural y encadena los skills de las capas afectadas, del análisis al commit. No implementa nada por su cuenta: coordina a los demás |
 | `actualizar-documentacion` | `docs/` | Audita la documentación contra el código real y corrige lo que se ha quedado desfasado |
+| `github-flow` | — | Operaciones GitHub (issue → rama → PR), detectando `owner`/`repo` dinámicamente con `git remote -v` |
 | `commit-message` | — | Genera el mensaje de commit siguiendo convenciones del proyecto |
 
 ---
@@ -67,13 +65,13 @@ flowchart TD
     A([Inicio]) --> DA
 
     DA["🔍 diseño-analisis\ndocs/analisis-diseño.md"]
-    M["📦 modelo\nModels/*.cs"]
-    DTO["📄 dto\nDtos/*Dto.cs"]
-    BD["🗄️ base-de-datos\nData/AppDbContext.cs\nappsettings.json"]
-    LN["⚙️ logica-negocio\nLogicaNegocio/I*Logica.cs\nLogicaNegocio/*Logica.cs"]
-    VA["✔️ validaciones\nDtos/ + LogicaNegocio/"]
-    SV["🔀 servicio\nServices/I*Service.cs\nServices/*Service.cs"]
-    CT["🌐 controlador\nControllers/*Controller.cs"]
+    M["📦 modelo\nTaskFlow.Domain/Entities/*.cs"]
+    DTO["📄 dto\nTaskFlow.Application/*/Dtos/*.cs"]
+    BD["🗄️ base-de-datos\nTaskFlowDbContext + Configurations/\n+ migración EF Core"]
+    LN["⚙️ logica-negocio\nI*Repository (Application)\n*Repository (Infrastructure)"]
+    VA["✔️ validaciones\nValidators/ + Domain + Service"]
+    SV["🔀 servicio\nI*Service.cs + *Service.cs + *Mapper.cs"]
+    CT["🌐 controlador\nTaskFlow.Api/*/*Endpoints.cs"]
     CM["✅ commit-message\nMensaje de commit"]
 
     DA --> M
@@ -105,13 +103,14 @@ Cada skill lee los artefactos de los skills anteriores como fuente de verdad. Nu
 ```mermaid
 graph LR
     AD["docs/analisis-diseño.md"]
-    MO["Models/"]
-    DT["Dtos/"]
-    DB["Data/AppDbContext.cs"]
-    LN["LogicaNegocio/"]
-    SV["Services/"]
-    CT["Controllers/"]
-    PR["Program.cs"]
+    MO["TaskFlow.Domain/Entities/"]
+    DT["TaskFlow.Application/*/Dtos/"]
+    DB["TaskFlow.Infrastructure/Persistence/TaskFlowDbContext.cs"]
+    LN["TaskFlow.Infrastructure/Repositories/"]
+    SV["TaskFlow.Application/*/*Service.cs"]
+    CT["TaskFlow.Api/*/*Endpoints.cs"]
+    AI["TaskFlow.Application/DependencyInjection.cs"]
+    II["TaskFlow.Infrastructure/DependencyInjection.cs"]
     AP["appsettings.json"]
 
     AD -->|"secciones 4 y 5"| MO
@@ -123,19 +122,18 @@ graph LR
 
     MO -->|"tipos de entidad"| DB
     MO -->|"tipos de entidad"| LN
-    MO -->|"tipos de entidad"| SV
-    DT -->|"campos a validar"| DT
+    MO -->|"métodos de comportamiento"| SV
+    DT -->|"contratos a validar"| DT
     DT -->|"firmas de métodos"| SV
-    DT -->|"parámetros de acción"| CT
-    DB -->|"AppDbContext inyectado"| LN
-    LN -->|"validación de existencia"| LN
-    LN -->|"interfaz I*Logica"| SV
+    DT -->|"parámetros de handler"| CT
+    DB -->|"TaskFlowDbContext inyectado"| LN
+    LN -->|"interfaz I*Repository"| SV
     SV -->|"interfaz I*Service"| CT
 
-    DB -->|"AddDbContext"| PR
+    DB -->|"AddDbContext"| II
     DB -->|"ConnectionStrings"| AP
-    LN -->|"AddScoped I*Logica"| PR
-    SV -->|"AddScoped I*Service"| PR
+    LN -->|"AddScoped I*Repository"| II
+    SV -->|"AddScoped I*Service"| AI
 ```
 
 ---
@@ -146,36 +144,36 @@ Una vez ejecutados todos los skills, la aplicación queda estructurada en capas 
 
 ```mermaid
 flowchart LR
-    subgraph HTTP["Capa HTTP"]
-        C["Controller\n[ApiController]"]
+    subgraph HTTP["TaskFlow.Api"]
+        C["*Endpoints\nMinimal API (MapGroup)"]
     end
 
-    subgraph DTO_IN["DTOs de entrada (validados)"]
-        DI["Crear*Dto\n[Required][MaxLength]\nActualizar*Dto"]
+    subgraph DTO_IN["Contratos de entrada (validados con FluentValidation)"]
+        DI["Create*Request\nUpdate*Request"]
     end
 
-    subgraph DTO_OUT["DTOs de salida"]
+    subgraph DTO_OUT["Contrato de salida"]
         DO["*Dto"]
     end
 
-    subgraph SVC["Capa de Orquestación"]
+    subgraph SVC["TaskFlow.Application — Orquestación"]
         SI["I*Service"]
-        SS["*Service"]
+        SS["*Service + *Mapper"]
         SI -.implementa.- SS
     end
 
-    subgraph BL["Lógica de Negocio + Validaciones"]
-        LI["I*Logica"]
-        LS["*Logica\n(reglas de dominio,\nvalidación de existencia)"]
+    subgraph BL["TaskFlow.Infrastructure — Acceso a datos"]
+        LI["I*Repository (contrato en Application)"]
+        LS["*Repository\n(consultas EF Core, sin reglas de negocio)"]
         LI -.implementa.- LS
     end
 
-    subgraph DATA["Acceso a Datos"]
-        DB["AppDbContext\n(EF Core + SQLite)"]
+    subgraph DATA["Persistencia"]
+        DB["TaskFlowDbContext\n(EF Core + SQLite)"]
     end
 
-    subgraph DOM["Dominio"]
-        MO["Models/*.cs"]
+    subgraph DOM["TaskFlow.Domain"]
+        MO["Entities/*.cs\n(reglas de negocio + comportamiento)"]
     end
 
     C -->|"recibe"| DI
@@ -183,9 +181,9 @@ flowchart LR
     SI -->|"devuelve"| DO
     C -->|"responde"| DO
 
-    SS -->|"mapea DTO → entidad"| MO
+    SS -->|"invoca métodos de"| MO
     SS -->|"delega"| LI
-    LS -->|"usa"| MO
+    LS -->|"persiste"| MO
     LS -->|"accede"| DB
 ```
 
@@ -198,62 +196,58 @@ Cómo viajan los datos desde el cliente HTTP hasta la base de datos y de vuelta,
 ```mermaid
 sequenceDiagram
     actor Cliente
-    participant C as Controller
-    participant S as Service
-    participant L as LogicaNegocio
-    participant DB as AppDbContext
+    participant E as *Endpoints
+    participant S as *Service
+    participant D as Entidad (Domain)
+    participant R as *Repository
+    participant DB as TaskFlowDbContext
 
-    Cliente->>C: POST /api/tareas\n{ "titulo": "..." }
-    Note over C: [ApiController] valida ModelState automáticamente<br/>(anotaciones [Required], [MaxLength] del DTO)
-    alt ModelState inválido
-        C-->>Cliente: 400 Bad Request\n{ "errors": { ... } }
-    else ModelState válido
-        C->>S: CrearAsync(CrearTareaDto)
-        Note over S: Mapea DTO → entidad TodoItem
-        S->>L: CrearAsync(TodoItem)
-        Note over L: Valida reglas de negocio<br/>(título no vacío, sin duplicados, etc.)
-        alt Regla de negocio violada
-            L-->>S: throws InvalidOperationException
-            S-->>C: excepción propagada
-            C-->>Cliente: 400 Bad Request
+    Cliente->>E: POST /api/tasks\n{ "title": "..." }
+    Note over E: IValidator&lt;CreateTaskRequest&gt; valida el request<br/>(reglas de FluentValidation)
+    alt Validación inválida
+        E-->>Cliente: 400 Bad Request\n{ Results.ValidationProblem }
+    else Validación correcta
+        E->>S: CreateTaskAsync(CreateTaskRequest)
+        S->>D: new TaskItem(...)
+        Note over D: Aplica invariantes<br/>(título obligatorio, etc.)
+        alt Regla de dominio violada
+            D-->>S: throws ArgumentException
+            S-->>E: excepción propagada
+            E-->>Cliente: 400 Bad Request
         else Todo correcto
-            L->>DB: Add(todoItem) + SaveChangesAsync()
-            DB-->>L: todoItem con Id asignado
-            L-->>S: TodoItem creado
-            Note over S: Mapea entidad → TareaDto
-            S-->>C: TareaDto
-            C-->>Cliente: 201 Created\n{ "id": 1, "titulo": "...", ... }
+            S->>R: AddAsync(task) + SaveChangesAsync()
+            R->>DB: Add(task) + SaveChangesAsync()
+            DB-->>R: task con Id asignado
+            R-->>S: OK
+            Note over S: Mapea entidad → TaskDto (TaskMapper)
+            S-->>E: TaskDto
+            E-->>Cliente: 201 Created\n{ "id": 1, "title": "...", ... }
         end
     end
 ```
 
 ---
 
-## 6. Gestión de `Program.cs`
+## 6. Gestión de la inyección de dependencias
 
-Cada skill que genera clases registrables actualiza `Program.cs` con los registros de inyección de dependencias. El resultado final queda así:
+Cada skill que genera clases registrables actualiza el `DependencyInjection.cs` de su propia capa — nunca `Program.cs` directamente (salvo para llamar a `AddApplication()`/`AddInfrastructure()` y registrar el grupo de endpoints):
 
 ```mermaid
 flowchart TD
     PR["Program.cs"]
 
-    BD_REG["builder.Services\n.AddDbContext&lt;AppDbContext&gt;(SQLite)"]
-    LN_REG["builder.Services\n.AddScoped&lt;I*Logica, *Logica&gt;()"]
-    SV_REG["builder.Services\n.AddScoped&lt;I*Service, *Service&gt;()"]
-    CT_REG["builder.Services\n.AddControllers()"]
-    MAP["app.MapControllers()"]
+    APP_CALL["builder.Services.AddApplication()"]
+    INFRA_CALL["builder.Services.AddInfrastructure(config)"]
+    MAP["app.Map*Endpoints()"]
 
-    PR --> BD_REG
-    PR --> LN_REG
-    PR --> SV_REG
-    PR --> CT_REG
+    PR --> APP_CALL --> AI["TaskFlow.Application/DependencyInjection.cs\nAddScoped I*Service, *Service\nAddValidatorsFromAssemblyContaining"]
+    PR --> INFRA_CALL --> II["TaskFlow.Infrastructure/DependencyInjection.cs\nAddDbContext TaskFlowDbContext\nAddScoped I*Repository, *Repository"]
     PR --> MAP
 
-    BD_REG -->|"registrado por"| SK_BD["skill base-de-datos"]
-    LN_REG -->|"registrado por"| SK_LN["skill logica-negocio"]
-    SV_REG -->|"registrado por"| SK_SV["skill servicio"]
-    CT_REG -->|"verificado por"| SK_CT["skill controlador"]
-    MAP    -->|"verificado por"| SK_CT
+    AI -->|"registrado por"| SK_SV["skill servicio"]
+    II -->|"registrado por"| SK_BD["skill base-de-datos"]
+    II -->|"registrado por"| SK_LN["skill logica-negocio"]
+    MAP -->|"registrado por"| SK_CT["skill controlador"]
 
     style SK_BD fill:#e0f2fe,stroke:#0284c7
     style SK_LN fill:#fce7f3,stroke:#db2777
@@ -270,7 +264,7 @@ flowchart TD
     START([Nueva feature / nuevo recurso]) --> Q1{¿Existe\ndocs/analisis-diseño.md?}
 
     Q1 -->|No| DA["▶ Ejecutar\ndiseño-analisis"]
-    Q1 -->|Sí| Q2{¿Existen\nlos modelos?}
+    Q1 -->|Sí| Q2{¿Existe la\nentidad de dominio?}
     DA --> Q2
 
     Q2 -->|No| MO["▶ Ejecutar\nmodelo"]
@@ -278,11 +272,11 @@ flowchart TD
     MO --> Q3
 
     Q3 -->|No| DTO["▶ Ejecutar\ndto"]
-    Q3 -->|Sí| Q4{¿Existe\nAppDbContext?}
+    Q3 -->|Sí| Q4{¿Existe\nTaskFlowDbContext?}
     DTO --> Q4
 
     Q4 -->|No| BD["▶ Ejecutar\nbase-de-datos"]
-    Q4 -->|Sí| Q5{¿Existe\nlógica de negocio?}
+    Q4 -->|Sí| Q5{¿Existe\nel repositorio?}
     BD --> Q5
 
     Q5 -->|No| LN["▶ Ejecutar\nlogica-negocio"]
@@ -290,11 +284,11 @@ flowchart TD
     LN --> Q6
 
     Q6 -->|No| VA["▶ Ejecutar\nvalidaciones"]
-    Q6 -->|Sí| Q7{¿Existen\nlos servicios?}
+    Q6 -->|Sí| Q7{¿Existe\nel servicio?}
     VA --> Q7
 
     Q7 -->|No| SV["▶ Ejecutar\nservicio"]
-    Q7 -->|Sí| Q8{¿Existen\nlos controladores?}
+    Q7 -->|Sí| Q8{¿Existen\nlos endpoints?}
     SV --> Q8
 
     Q8 -->|No| CT["▶ Ejecutar\ncontrolador"]
@@ -318,14 +312,17 @@ flowchart TD
 
 ## 8. Convenciones de nomenclatura por capa
 
-| Capa | Interfaz | Implementación | Ejemplo |
+| Capa | Interfaz | Implementación | Ejemplo real |
 |---|---|---|---|
-| Lógica de negocio | `I<Recurso>Logica` | `<Recurso>Logica` | `ITareaLogica` / `TareaLogica` |
-| Servicio | `I<Recurso>Service` | `<Recurso>Service` | `ITareaService` / `TareaService` |
-| Controlador | — | `<Recurso>Controller` | `TareasController` |
-| DTO entrada crear | — | `Crear<Recurso>Dto` | `CrearTareaDto` |
-| DTO entrada actualizar | — | `Actualizar<Recurso>Dto` | `ActualizarTareaDto` |
-| DTO salida | — | `<Recurso>Dto` | `TareaDto` |
-| Entidad de dominio | — | `<Recurso>` | `TodoItem` |
-| Contexto de datos | — | `AppDbContext` | `AppDbContext` |
+| Repositorio (acceso a datos) | `I<Recurso>Repository` | `<Recurso>Repository` | `ITaskRepository` / `TaskRepository` |
+| Servicio (orquestación) | `I<Recurso>Service` | `<Recurso>Service` | `ITaskService` / `TaskService` |
+| Endpoints (Minimal API) | — | `<Recurso>Endpoints` | `TaskEndpoints` |
+| Contrato de entrada — crear | — | `Create<Recurso>Request` | `CreateTaskRequest` |
+| Contrato de entrada — actualizar | — | `Update<Recurso>Request` | `UpdateTaskRequest` |
+| Contrato de salida | — | `<Recurso>Dto` | `TaskDto` |
+| Contrato de filtro de listado | — | `<Recurso>FilterRequest` | `TaskFilterRequest` |
+| Entidad de dominio | — | `<Recurso>` | `TaskItem` |
+| Contexto de datos | — | `TaskFlowDbContext` | `TaskFlowDbContext` |
+| Configuración Fluent API | — | `<Entidad>Configuration` | `TaskItemConfiguration` |
+| Validador (FluentValidation) | — | `<Contrato>Validator` | `CreateTaskRequestValidator` |
 

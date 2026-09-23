@@ -9,8 +9,8 @@ argument-hint: 'Recurso o componente a generar (opcional, por defecto: scaffold 
 ## Cuándo usar este skill
 
 - El usuario pide "crear el frontend", "generar la interfaz", "crear la página de tareas"
-- Se quiere añadir un componente o página nueva para un recurso de la API
-- Se quiere crear el servicio de llamadas a la API para un recurso
+- Se quiere añadir un componente, hook o formulario nuevo para un recurso de la API
+- Se quiere crear o actualizar el cliente de la API para un recurso
 - Se necesita configurar o corregir el proxy Vite → ASP.NET Core
 
 ## Prerequisitos
@@ -20,43 +20,51 @@ Antes de generar código frontend, verificar que existe:
 1. **`ui-ux-pro-max`** — **VALORAR PRIMERO:** antes de implementar componentes, páginas o flujos de usuario, consulta el skill `ui-ux-pro-max` para aplicar patrones de diseño, heurísticas de usabilidad y accesibilidad.
    > **Salida honesta:** si al abrirlo compruebas que solo trae la ficha de catálogo (sin plantillas ni datos), **no te bloquees ni finjas que lo has usado**: sigue adelante aplicando los principios básicos de siempre —claridad, respuesta visible a cada acción, consistencia y accesibilidad— y deja constancia de que el skill no aportó nada.
 2. `docs/analisis-diseño.md` — para conocer los endpoints de la API
-3. `Dtos/` — los DTOs del backend son la fuente de verdad de los tipos TypeScript
+3. Los DTOs en `backend/src/TaskFlow.Application/<Recurso>/Dtos/` — son la fuente de verdad de los tipos TypeScript
 
-## Arquitectura del frontend
+## Arquitectura del frontend (ya scaffolded)
 
 ```
 frontend/                        ← carpeta raíz del proyecto Vite
 ├── index.html
-├── vite.config.ts               ← proxy hacia el backend ASP.NET Core
+├── vite.config.ts               ← proxy hacia el backend ASP.NET Core (HTTPS)
 ├── tsconfig.json
 ├── package.json
+├── playwright.config.ts
+├── e2e/
+│   └── tasks.spec.ts            ← tests end to end con Playwright
 └── src/
     ├── main.tsx
-    ├── App.tsx
+    ├── App.tsx                  ← orquesta hooks + componentes, sin fetch directo
     ├── types/
-    │   └── index.ts             ← interfaces TypeScript (espejo de los DTOs .NET)
-    ├── services/
-    │   ├── tareas.service.ts    ← llamadas fetch a /api/tareas
-    │   ├── categorias.service.ts
-    │   ├── plantillas.service.ts
-    │   └── usuarios.service.ts
+    │   ├── task.ts              ← interfaces TypeScript (espejo de los DTOs .NET)
+    │   └── user.ts
+    ├── schemas/
+    │   └── taskFormSchema.ts    ← esquemas Zod para formularios (React Hook Form)
+    ├── api/
+    │   ├── ApiError.ts          ← clase de error + tipo de problema de validación
+    │   ├── tasksApi.ts          ← funciones fetch a /api/tasks
+    │   └── usersApi.ts
+    ├── hooks/
+    │   ├── useTasks.ts          ← useQuery/useMutation de TanStack Query
+    │   └── useUsers.ts
     ├── components/
-    │   ├── TareasList.tsx
-    │   ├── TareaForm.tsx
-    │   └── ...
-    └── pages/
-        ├── TareasPage.tsx
-        ├── CategoriasPage.tsx
-        └── ...
+    │   ├── TaskList.tsx, TaskItem.tsx, TaskForm.tsx, TaskToolbar.tsx,
+    │   │   TaskStats.tsx, ConfirmDialog.tsx, Toast.tsx, AppHeader.tsx,
+    │   │   UserManager.tsx
+    │   └── *.test.tsx           ← tests de Vitest + Testing Library junto al componente
+    ├── utils/
+    └── test/                    ← configuración de Vitest (setup, mocks)
 ```
 
 **Reglas de diseño:**
-- Un fichero de servicio por recurso de la API.
-- Los servicios son funciones puras (no clases), exportadas con nombre.
-- Los componentes reciben datos por props — sin fetch directo en componentes.
-- Las páginas orquestan: llaman al servicio y pasan datos a componentes.
+- Un fichero de cliente API por recurso en `api/` (`tasksApi.ts`, `usersApi.ts`), con funciones puras exportadas (no clases).
+- Un fichero de hooks por recurso en `hooks/` que envuelve el cliente API con `useQuery`/`useMutation` de **TanStack Query**; invalida la query key correspondiente (`invalidateQueries`) tras cada mutación.
+- Los componentes reciben datos por props — sin fetch directo en componentes; el fetching vive en los hooks.
+- Los formularios usan **React Hook Form** + **Zod** (`schemas/`) para validación en cliente, alineada con las reglas de FluentValidation del backend.
+- Los tests de componente (`*.test.tsx`) viven junto al componente que testean, no en una carpeta `__tests__/` separada.
 - Texto de la UI en **español** (etiquetas, placeholders, mensajes de error).
-- Nombres de ficheros y funciones en **inglés** (convenio estándar de React).
+- Nombres de ficheros, funciones, tipos y props en **inglés** (convenio estándar de TypeScript/React).
 
 ---
 
@@ -67,36 +75,27 @@ frontend/                        ← carpeta raíz del proyecto Vite
 Leer siempre antes de generar:
 
 - [`docs/analisis-diseño.md`](../../docs/analisis-diseño.md) — sección 4 (modelo) y sección 5 (endpoints)
-- Los ficheros `Dtos/*.cs` del recurso a implementar — para derivar los tipos TypeScript
-- [`frontend/vite.config.ts`](../../frontend/vite.config.ts) si ya existe — para no sobreescribir configuración manual
+- Los DTOs `backend/src/TaskFlow.Application/<Recurso>/Dtos/*.cs` del recurso a implementar — para derivar los tipos TypeScript
+- [`frontend/vite.config.ts`](../../frontend/vite.config.ts) — para no sobreescribir configuración manual del proxy
+- Un recurso ya implementado (`api/tasksApi.ts`, `hooks/useTasks.ts`, `types/task.ts`) como plantilla de estilo
 
 ### Paso 2 — Scaffold inicial (solo si `frontend/` no existe)
 
-Si la carpeta `frontend/` no existe, ejecutar en terminal:
+`frontend/` ya existe en este repositorio con el stack completo (Vite + React 19 + TypeScript + Tailwind v4 + TanStack Query + React Hook Form + Zod). **No volver a crear el proyecto ni reinstalar dependencias** salvo que el usuario indique explícitamente que se ha perdido o se está empezando de cero.
 
-```bash
-cd c:\w\repos\AppTodoList
-npm create vite@latest frontend -- --template react-ts
-cd frontend
-npm install
-```
-
-Después de crear el proyecto, reemplazar `frontend/vite.config.ts` con la configuración de proxy del skill (ver ejemplo en `sample_codes/vite.config.ts`).
+Si excepcionalmente hubiera que scaffoldearlo desde cero, seguir el mismo stack y estructura descritos arriba en vez de la plantilla por defecto de `npm create vite@latest`.
 
 ### Paso 3 — Tipos TypeScript
 
-Los tipos van en `frontend/src/types/index.ts`. Derivan directamente de los DTOs de `Dtos/*.cs`:
+Los tipos van en `frontend/src/types/<recurso>.ts`. Derivan directamente de los DTOs de `TaskFlow.Application/<Recurso>/Dtos/*.cs`:
 
-| DTO .NET | Interface TypeScript |
+| Contrato .NET | Tipo/Interface TypeScript |
 |---|---|
-| `TareaDto` | `Tarea` |
-| `CrearTareaDto` | `CrearTarea` |
-| `ActualizarTareaDto` | `ActualizarTarea` |
-| `CategoriaDto` | `Categoria` |
-| `CrearCategoriaDto` | `CrearCategoria` |
-| `ActualizarCategoriaDto` | `ActualizarCategoria` |
-| `PlantillaDto` | `Plantilla` |
-| `UsuarioAsignadoDto` | `UsuarioAsignado` |
+| `TaskDto` | `Task` (interface) |
+| `CreateTaskRequest` | `CreateTaskPayload` |
+| `UpdateTaskRequest` | `UpdateTaskPayload` (a menudo `= CreateTaskPayload` si los campos coinciden) |
+| `TaskFilterRequest` | `TaskFilters` |
+| enum `TaskPriority` | objeto `as const` + tipo derivado (ver `TaskPriority`/`TaskPriorityValue` en `types/task.ts`) |
 
 **Mapeo de tipos C# → TypeScript:**
 
@@ -110,110 +109,95 @@ Los tipos van en `frontend/src/types/index.ts`. Derivan directamente de los DTOs
 | `string?` | `string \| null` |
 | `bool?` | `boolean \| null` |
 | `DateTime?` | `string \| null` |
-| enum `TipoRecurrencia` | `'Diaria' \| 'Semanal' \| 'Mensual'` |
+| enum numérico (`TaskPriority`) | objeto `as const` con los mismos valores numéricos + tipo `...Value` (ver `types/task.ts`) |
 
-Ver ejemplo completo en [`sample_codes/tipos.ts`](sample_codes/tipos.ts).
+Seguir el patrón exacto de `types/task.ts`: exportar un objeto `as const` para el enum, un tipo `XxxValue` derivado con `(typeof Xxx)[keyof typeof Xxx]`, y las interfaces `Task`, `TaskFilters`, `CreateTaskPayload`, `UpdateTaskPayload`.
 
-### Paso 4 — Servicio de API
+### Paso 4 — Cliente de la API (`api/`)
 
-Crear un fichero de servicio por recurso en `frontend/src/services/`. El servicio usa `fetch` nativo y lanza un error si la respuesta HTTP no es `ok`.
-
-**Patrón base:**
+Crear o actualizar `frontend/src/api/<recurso>Api.ts`, siguiendo el patrón de `tasksApi.ts`: usa `fetch` nativo, construye la query string de filtros si aplica, y traduce las respuestas de error (`ValidationProblem` de FluentValidation) a `ApiError` mediante `parseError`.
 
 ```typescript
-const BASE = '/api/tareas';
+const BASE_URL = '/api/tasks'
 
-export async function listarTareas(): Promise<Tarea[]> {
-  const res = await fetch(BASE);
-  if (!res.ok) throw new Error(`Error ${res.status}`);
-  return res.json();
+export async function fetchTasks(filters: TaskFilters, signal?: AbortSignal): Promise<Task[]> {
+  const response = await fetch(`${BASE_URL}${buildQueryString(filters)}`, { signal })
+  if (!response.ok) {
+    return parseError(response)
+  }
+  return response.json()
 }
 
-export async function crearTarea(datos: CrearTarea): Promise<Tarea> {
-  const res = await fetch(BASE, {
+export async function createTask(payload: CreateTaskPayload): Promise<Task> {
+  const response = await fetch(BASE_URL, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(datos),
-  });
-  if (!res.ok) throw new Error(`Error ${res.status}`);
-  return res.json();
+    body: JSON.stringify(payload),
+  })
+  if (!response.ok) {
+    return parseError(response)
+  }
+  return response.json()
 }
 ```
 
-Ver ejemplo completo en [`sample_codes/tareas.service.ts`](sample_codes/tareas.service.ts).
+Reutilizar `ApiError` y `parseError` de `api/ApiError.ts` — no duplicar el manejo de errores en cada fichero.
 
-### Paso 5 — Componentes y páginas
+### Paso 5 — Hooks de TanStack Query (`hooks/`)
 
-**Página** (`pages/TareasPage.tsx`): gestiona el estado con `useState` + `useEffect`, llama al servicio, pasa datos a los componentes.
+Crear o actualizar `frontend/src/hooks/use<Recurso>.ts`, siguiendo el patrón de `useTasks.ts`: un hook `use<Recurso>s(filters)` con `useQuery`, y un hook `use<Verbo><Recurso>()` por mutación (`useCreateTask`, `useUpdateTask`, `useCompleteTask`, `useReopenTask`…) que invalida la query key del recurso tras `onSuccess`.
 
-**Componente lista** (`components/TareasList.tsx`): recibe `tareas: Tarea[]` por props, renderiza la lista.
+```typescript
+const TASKS_KEY = 'tasks'
 
-**Componente formulario** (`components/TareaForm.tsx`): recibe `onGuardar: (datos: CrearTarea) => void` por props, gestiona el estado del formulario localmente.
+export function useTasks(filters: TaskFilters) {
+  return useQuery({
+    queryKey: [TASKS_KEY, filters],
+    queryFn: ({ signal }) => fetchTasks(filters, signal),
+  })
+}
 
-**Patrón de página:**
-
-```tsx
-export default function TareasPage() {
-  const [tareas, setTareas] = useState<Tarea[]>([]);
-  const [cargando, setCargando] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    listarTareas()
-      .then(setTareas)
-      .catch(e => setError(e.message))
-      .finally(() => setCargando(false));
-  }, []);
-
-  if (cargando) return <p>Cargando...</p>;
-  if (error) return <p>Error: {error}</p>;
-
-  return (
-    <div>
-      <h1>Tareas</h1>
-      <TareasList tareas={tareas} />
-    </div>
-  );
+export function useCreateTask() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (payload: CreateTaskPayload) => createTask(payload),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: [TASKS_KEY] }),
+  })
 }
 ```
 
-### Paso 6 — Configuración del proxy Vite
+### Paso 6 — Schema de validación (Zod) y formulario (React Hook Form)
 
-El proxy redirige `/api/*` al backend ASP.NET Core para evitar problemas de CORS en desarrollo. Ver [`sample_codes/vite.config.ts`](sample_codes/vite.config.ts).
+Si el recurso tiene un formulario de creación/edición, crear o actualizar `frontend/src/schemas/<recurso>FormSchema.ts` con un esquema Zod alineado con las reglas de FluentValidation del backend (mismos límites de longitud, mismos campos obligatorios).
 
-**Regla clave:** si el backend corre en HTTPS (puerto 7279), el proxy debe usar `https://localhost:7279` con `secure: false`. Si se apunta a HTTP, el backend redirige con 307 y se pierden headers.
+El componente de formulario (`components/<Recurso>Form.tsx`) usa `useForm` de React Hook Form con `zodResolver(schema)`, y su propio test `<Recurso>Form.test.tsx` junto al componente.
+
+### Paso 7 — Componentes
+
+- **Componente lista** (`components/<Recurso>List.tsx`): recibe los datos por props, renderiza la lista, delega acciones (completar, editar, eliminar) a callbacks recibidos por props.
+- **Componente item** (`components/<Recurso>Item.tsx`): una fila/tarjeta del recurso, con sus acciones y estados visuales (completada, vencida…).
+- **Componente formulario** (`components/<Recurso>Form.tsx`): usa React Hook Form + Zod, expone `onSubmit` por props.
+- **`App.tsx`** orquesta: llama a los hooks, pasa datos y callbacks a los componentes. Sin `useState`/`useEffect` de fetching manual — eso ya lo resuelve TanStack Query.
+
+Gestionar siempre los estados de carga, error y vacío que expone `useQuery` (`isLoading`, `isError`, `data`).
+
+### Paso 8 — Configuración del proxy Vite
+
+El proxy redirige `/api/*` al backend ASP.NET Core para evitar problemas de CORS en desarrollo. Ver [`frontend/vite.config.ts`](../../frontend/vite.config.ts).
+
+**Regla clave:** el backend corre en HTTPS con certificado de desarrollo (`https://localhost:5001`); el proxy debe usar esa URL con `secure: false`. Si se apunta a HTTP, el backend redirige con 307 y se pierden headers (incluido `Authorization` si en el futuro hubiera auth).
+
+### Paso 9 — Pruebas
+
+Añadir o actualizar el test del componente (`<Componente>.test.tsx`, Vitest + Testing Library) junto al fichero del componente. Si la feature afecta a un recorrido completo (crear, completar, eliminar…), actualizar `frontend/e2e/tasks.spec.ts` o añadir un test end to end nuevo con Playwright, autocontenido (título único + limpieza al final).
 
 ---
 
 ## Convenciones de código
 
-- `useState`, `useEffect` para estado y efectos — sin librerías de estado externas salvo que se pida.
-- Los tipos exportados en `types/index.ts` se importan con `import type { Tarea } from '../types'`.
-- Los servicios exportan funciones, no clases: `export async function listarTareas()`.
+- Sin `useState`/`useEffect` para datos remotos — usar los hooks de TanStack Query (`hooks/`).
+- Los tipos exportados en `types/<recurso>.ts` se importan con `import type { Task } from '../types/task'`.
+- Los clientes de API exportan funciones, no clases: `export async function fetchTasks()`.
 - Mensajes de error genéricos en español: "No se pudo cargar la lista de tareas."
 - Botones y etiquetas en español: "Crear tarea", "Eliminar", "Guardar cambios".
-
----
-
-## Navegación entre recursos
-
-Si el usuario pide múltiples recursos, añadir rutas en `App.tsx` usando React Router:
-
-```bash
-npm install react-router-dom
-```
-
-```tsx
-import { BrowserRouter, Routes, Route, Link } from 'react-router-dom';
-
-<BrowserRouter>
-  <nav>
-    <Link to="/">Tareas</Link>
-    <Link to="/categorias">Categorías</Link>
-  </nav>
-  <Routes>
-    <Route path="/" element={<TareasPage />} />
-    <Route path="/categorias" element={<CategoriasPage />} />
-  </Routes>
-</BrowserRouter>
-```
+- Pedir confirmación (`ConfirmDialog.tsx`) antes de eliminar una tarea, según las convenciones del proyecto.

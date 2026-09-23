@@ -36,9 +36,9 @@ argument-hint: 'Describe brevemente el cambio que vas a commitear'
 Añade contexto sobre qué parte del código afecta. Va entre paréntesis:
 
 ```
-feat(TareasController): añadir endpoint DELETE /api/tareas/{id}
-fix(TodoService): lanzar 404 cuando el item no existe
-test(TodoServiceTests): cubrir caso de título vacío
+feat(TaskEndpoints): añadir endpoint DELETE /api/tasks/{id}
+fix(TaskService): lanzar 404 cuando la tarea no existe
+test(TaskServiceTests): cubrir caso de título vacío
 ```
 
 ### BREAKING CHANGE
@@ -48,7 +48,7 @@ Si el cambio rompe compatibilidad, añade `!` antes de los dos puntos o un foote
 ```
 feat(api)!: cambiar respuesta de creación de 200 a 201
 
-BREAKING CHANGE: los clientes que esperan 200 en POST /api/tareas deben actualizarse.
+BREAKING CHANGE: los clientes que esperan 200 en POST /api/tasks deben actualizarse.
 ```
 
 ## Reglas
@@ -108,12 +108,12 @@ Reviewed-by: Pedro
 ## Ejemplos
 
 ```
-feat(TareasController): añadir endpoint DELETE /api/tareas/{id}
+feat(TaskEndpoints): añadir endpoint DELETE /api/tasks/{id}
 ```
 
 ```
-fix(TodoService): lanzar KeyNotFoundException cuando Id no existe
+fix(TaskService): lanzar NotFoundException cuando el Id no existe
 
-Antes devolvía null silenciosamente. Los controladores esperan
+Antes devolvía null silenciosamente. Los endpoints esperan
 la excepción para responder con 404 correctamente.
 ```

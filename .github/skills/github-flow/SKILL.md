@@ -1,6 +1,6 @@
 # Skill: github-flow
 
-Encapsula operaciones del flujo Issue → Branch → PR en AppTodoList.
+Encapsula operaciones del flujo Issue → Branch → PR en este repositorio (TaskFlow).
 
 ## Cuándo usar
 
@@ -34,7 +34,7 @@ Usa `mcp_github_mcp_se_issue_read` con método `"get"`.
 ```
 
 **Efecto:**
-1. Verifica que `git remote -v` da `hispafox/AppTodoList`
+1. Ejecuta `git remote -v` y extrae `owner`/`repo` de la URL del remoto `origin` — **nunca asumir ni codificar un owner/repo fijo**, el nombre del repositorio puede cambiar (renombrados, forks, clones).
 2. Verifica que estás en `main` con `git branch --show-current`
 3. Crea rama `feature/issue-<N>-<slug>` con `mcp_github_mcp_se_create_branch` desde `main`
 4. Ejecuta `git checkout feature/issue-<N>-<slug>`
@@ -87,27 +87,31 @@ Usa `mcp_github_mcp_se_add_issue_comment` para añadir un comentario en el issue
 
 ---
 
-## Variables de entorno
+## Detección de owner/repo
 
-El skill detecta automáticamente:
-- `owner`: Extrae de `git remote -v` (primera línea que contenga `github.com:`)
-- `repo`: Extrae de la misma línea
+El skill **nunca** asume ni codifica el owner o el nombre del repositorio. Antes de cualquier llamada al MCP de GitHub, ejecuta `git remote -v` y extrae ambos valores del remoto `origin`:
 
 **Formato esperado:**
 ```
-origin  git@github.com:hispafox/AppTodoList.git (fetch)
+origin  git@github.com:<owner>/<repo>.git (fetch)
 ```
 
 O:
 ```
-origin  https://github.com/hispafox/AppTodoList.git (fetch)
+origin  https://github.com/<owner>/<repo>.git (fetch)
 ```
+
+Si `git remote -v` falla o no devuelve un remoto `origin` reconocible, **detener la operación e informar al usuario** en vez de asumir un valor por defecto.
 
 ---
 
 ## Ejemplo completo
 
 ```bash
+# Verificar el remoto antes de cualquier operación
+git remote -v
+# → origin  https://github.com/<owner>/<repo>.git (fetch)
+
 # Leer issue
 @github-flow leer-issue 15
 # → Devuelve: "Añadir Índices en Foreign Keys"
@@ -120,10 +124,10 @@ origin  https://github.com/hispafox/AppTodoList.git (fetch)
 
 # Crear PR
 @github-flow crear-pr 15 feature/issue-15-indices-fks docs/plan-indices-fks.md
-# → Devuelve: PR #27 creado en https://github.com/hispafox/AppTodoList/pull/27
+# → Devuelve: PR creado en https://github.com/<owner>/<repo>/pull/<N>
 
 # Comentar
-@github-flow comentar-issue 15 "✅ PR creado: #27"
+@github-flow comentar-issue 15 "✅ PR creado: #<N>"
 # → Añade comentario en issue #15
 ```
 
@@ -141,4 +145,4 @@ origin  https://github.com/hispafox/AppTodoList.git (fetch)
 
 - El skill NO hace commit ni push — eso lo hace el orquestador
 - El skill NO invoca al planificador/desarrollador/verificador — solo maneja GitHub
-- Todas las operaciones validan el owner/repo antes de llamar a MCP
+- Todas las operaciones validan el owner/repo con `git remote -v` antes de llamar a MCP; si el MCP de GitHub no está disponible en la sesión, el skill lo informa como bloqueo sin asumir el repositorio.
