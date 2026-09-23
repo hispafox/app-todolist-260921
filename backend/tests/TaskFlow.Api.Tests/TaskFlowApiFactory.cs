@@ -33,6 +33,7 @@ public class TaskFlowApiFactory : WebApplicationFactory<Program>
         var dbContext = scope.ServiceProvider.GetRequiredService<TaskFlowDbContext>();
         dbContext.Tasks.RemoveRange(dbContext.Tasks);
         dbContext.Users.RemoveRange(dbContext.Users);
+        dbContext.Templates.RemoveRange(dbContext.Templates);
         await dbContext.SaveChangesAsync();
     }
 

@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Diagnostics;
 using Scalar.AspNetCore;
 using TaskFlow.Api.Tasks;
+using TaskFlow.Api.Templates;
 using TaskFlow.Api.Users;
 using TaskFlow.Application;
 using TaskFlow.Application.Common;
@@ -76,6 +77,7 @@ app.UseCors(FrontendCorsPolicy);
 
 app.MapTaskEndpoints();
 app.MapUserEndpoints();
+app.MapTemplateEndpoints();
 
 using (var scope = app.Services.CreateScope())
 {

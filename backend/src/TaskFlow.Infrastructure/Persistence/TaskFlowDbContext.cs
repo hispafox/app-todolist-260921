@@ -11,6 +11,7 @@ public class TaskFlowDbContext : DbContext
 
     public DbSet<TaskItem> Tasks => Set<TaskItem>();
     public DbSet<AppUser> Users => Set<AppUser>();
+    public DbSet<TaskTemplate> Templates => Set<TaskTemplate>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

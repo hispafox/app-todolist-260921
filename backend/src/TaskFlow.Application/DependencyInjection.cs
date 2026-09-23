@@ -9,6 +9,7 @@ public static class DependencyInjection
     {
         services.AddScoped<Tasks.ITaskService, Tasks.TaskService>();
         services.AddScoped<Users.IUserService, Users.UserService>();
+        services.AddScoped<Templates.ITaskTemplateService, Templates.TaskTemplateService>();
         services.AddValidatorsFromAssemblyContaining(typeof(DependencyInjection));
 
         return services;

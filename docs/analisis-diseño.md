@@ -149,6 +149,27 @@ Para poder asignar tareas a una persona se incorpora un catálogo simple de usua
 - El email de `AppUser` es único; intentar crear o actualizar un usuario con un email ya existente responde `409 Conflict`.
 - Esta gestión de usuarios es un catálogo interno de asignación y no constituye un sistema de autenticación ni de multiusuario con sesiones.
 
+### Entidad de plantillas: TaskTemplate
+
+Para reutilizar combinaciones habituales de campos al crear tareas se incorpora `TaskTemplate`, un catálogo independiente sin relación de clave foránea con `TaskItem`:
+
+| Campo | Tipo | Descripción |
+|---|---|---|
+| Id | int | Identificador único de la plantilla |
+| Title | string | Título obligatorio, máx. 120 caracteres |
+| Description | string? | Descripción opcional, máx. 500 caracteres |
+| Priority | TaskPriority | Prioridad reutilizable (`Low`, `Medium`, `High`) |
+| Category | string? | Categoría opcional, máx. 40 caracteres |
+
+`TaskTemplate` no tiene campos de auditoría (`CreatedAt`/`UpdatedAt`), siguiendo el mismo criterio que `AppUser`. Crear una tarea desde una plantilla es una operación de copia de valores en el momento de la creación, no una relación persistida: no existe `TemplateId` en `TaskItem`.
+
+### Reglas de negocio de las plantillas
+
+- `Title` es obligatorio en `TaskTemplate`, igual que en `TaskItem` y `AppUser`: no puede estar vacío ni ser solo espacios, y se recorta (`Trim()`).
+- Al crear una tarea desde una plantilla (`POST /api/templates/{id}/tasks`), la tarea resultante hereda `Title`, `Description`, `Priority` y `Category` de la plantilla, y el cliente indica `DueDate`/`AssignedUserId` en la petición.
+- Si la plantilla indicada no existe, la operación responde `404 Not Found`.
+- Si `AssignedUserId` no existe, la operación responde `404 Not Found`, igual que en `POST /api/tasks`.
+
 ### Contratos de entrada y salida
 
 El backend expone DTOs separados del dominio para evitar filtrar `TaskItem` directamente a la API:
@@ -160,6 +181,9 @@ El backend expone DTOs separados del dominio para evitar filtrar `TaskItem` dire
 - `TaskFilterRequest`: `Search`, `Status`, `Priority`, `Category`
 - `CreateUserRequest` / `UpdateUserRequest`: `Name`, `Email`, `Color`
 - `UserDto`: `Id`, `Name`, `Email`, `Color`
+- `CreateTaskTemplateRequest` / `UpdateTaskTemplateRequest`: `Title`, `Description`, `Priority`, `Category`
+- `TaskTemplateDto`: `Id`, `Title`, `Description`, `Priority`, `Category`
+- `CreateTaskFromTemplateRequest`: `DueDate`, `AssignedUserId` (la respuesta reutiliza `TaskDto`)
 
 ## 5. Endpoints API REST
 
@@ -186,6 +210,17 @@ El recurso `/api/users` gestiona el catálogo de usuarios asignables:
 | PUT | /api/users/{id} | Actualiza un usuario existente | 200 + objeto actualizado |
 | DELETE | /api/users/{id} | Elimina el usuario (las tareas asignadas quedan sin asignar) | 204 No Content |
 
+El recurso `/api/templates` gestiona el catálogo de plantillas de tareas reutilizables:
+
+| Verbo | Ruta | Descripción | Respuesta OK |
+|---|---|---|---|
+| GET | /api/templates | Obtiene todas las plantillas | 200 + array |
+| GET | /api/templates/{id} | Obtiene una plantilla concreta por Id | 200 + objeto |
+| POST | /api/templates | Crea una nueva plantilla | 201 + objeto creado |
+| PUT | /api/templates/{id} | Actualiza una plantilla existente | 200 + objeto actualizado |
+| DELETE | /api/templates/{id} | Elimina la plantilla | 204 No Content |
+| POST | /api/templates/{id}/tasks | Crea una tarea nueva heredando `Title`, `Description`, `Priority`, `Category` de la plantilla | 201 + `TaskDto` |
+
 
 ### Filtros y búsqueda soportados
 
@@ -200,7 +235,7 @@ Estos filtros se convierten internamente en `TaskFilterRequest` y se aplican en 
 
 ### Semántica de resultado
 
-- Si la tarea o el usuario no existen: la API devuelve `404 Not Found`.
+- Si la tarea, el usuario o la plantilla no existen: la API devuelve `404 Not Found`.
 - Si la entrada es inválida: la API responde con `400`/`ValidationProblem` según el caso.
 - Si el email de un usuario ya está en uso: la API responde `409 Conflict`.
 - Si la operación es exitosa: se devuelve la entidad actualizada o el código `204` del borrado.
@@ -242,6 +277,10 @@ Aunque la implementación real usa tecnologías modernas, la interfaz mantiene l
 ### 6.9 Catálogo de usuarios sin autenticación
 
 Para permitir asignar tareas a una persona se añade `AppUser` como catálogo simple (nombre, email, color), gestionado con un CRUD propio en `/api/users`. Deliberadamente no incorpora login, sesiones, roles ni aislamiento de datos por usuario: sigue siendo una aplicación de un único usuario final que ahora puede repartir tareas entre las personas de su entorno. Un futuro sistema de autenticación/multiusuario real seguiría siendo una ampliación independiente y fuera del alcance actual.
+
+### 6.10 Plantillas de tareas como catálogo independiente
+
+`TaskTemplate` se modela como un catálogo propio, sin FK hacia `TaskItem`, porque crear una tarea desde una plantilla es una copia de valores en el momento de la creación y no una relación que deba persistir. La lógica de creación de tarea desde plantilla vive en `TaskService` (no en `TaskTemplateService`), porque es quien ya conoce las reglas de creación de `TaskItem`, incluida la validación de `AssignedUserId`.
 
 ## 7. Pendientes / preguntas abiertas
 

@@ -10,6 +10,8 @@ public interface ITaskService
 
     Task<TaskDto> CreateTaskAsync(CreateTaskRequest request, CancellationToken cancellationToken);
 
+    Task<TaskDto?> CreateTaskFromTemplateAsync(int templateId, CreateTaskFromTemplateRequest request, CancellationToken cancellationToken);
+
     Task<TaskDto?> UpdateTaskAsync(int id, UpdateTaskRequest request, CancellationToken cancellationToken);
 
     Task<TaskDto?> AssignUserAsync(int id, int? userId, CancellationToken cancellationToken);

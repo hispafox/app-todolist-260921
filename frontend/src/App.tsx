@@ -1,10 +1,12 @@
 import { useMemo, useState } from 'react'
 import { AppHeader } from './components/AppHeader'
 import { ConfirmDialog } from './components/ConfirmDialog'
+import { CreateTaskFromTemplateDialog } from './components/CreateTaskFromTemplateDialog'
 import { TaskForm } from './components/TaskForm'
 import { TaskList } from './components/TaskList'
 import { TaskStats } from './components/TaskStats'
 import { TaskToolbar } from './components/TaskToolbar'
+import { TemplateManager } from './components/TemplateManager'
 import { ToastContainer, useToast } from './components/Toast'
 import { UserManager } from './components/UserManager'
 import {
@@ -16,6 +18,13 @@ import {
   useUpdateTask,
 } from './hooks/useTasks'
 import {
+  useCreateTaskFromTemplate,
+  useCreateTemplate,
+  useDeleteTemplate,
+  useTemplates,
+  useUpdateTemplate,
+} from './hooks/useTemplates'
+import {
   useCreateUser,
   useDeleteUser,
   useUpdateUser,
@@ -23,6 +32,7 @@ import {
 } from './hooks/useUsers'
 import type { TaskFormOutput } from './schemas/taskFormSchema'
 import type { Task, TaskFilters } from './types/task'
+import type { CreateTaskTemplatePayload, TaskTemplate } from './types/template'
 import type { User } from './types/user'
 import { formToPayload } from './utils/taskMapping'
 
@@ -38,6 +48,8 @@ function App() {
   const [editingTask, setEditingTask] = useState<Task | undefined>(undefined)
   const [taskToDelete, setTaskToDelete] = useState<Task | undefined>(undefined)
   const [userToDelete, setUserToDelete] = useState<User | undefined>(undefined)
+  const [templateToDelete, setTemplateToDelete] = useState<TaskTemplate | undefined>(undefined)
+  const [templateForNewTask, setTemplateForNewTask] = useState<TaskTemplate | undefined>(undefined)
 
   const { toasts, showToast } = useToast()
   const tasksQuery = useTasks(filters)
@@ -52,8 +64,15 @@ function App() {
   const updateUserMutation = useUpdateUser()
   const deleteUserMutation = useDeleteUser()
 
+  const templatesQuery = useTemplates()
+  const createTemplateMutation = useCreateTemplate()
+  const updateTemplateMutation = useUpdateTemplate()
+  const deleteTemplateMutation = useDeleteTemplate()
+  const createTaskFromTemplateMutation = useCreateTaskFromTemplate()
+
   const tasks = useMemo(() => tasksQuery.data ?? [], [tasksQuery.data])
   const users = useMemo(() => usersQuery.data ?? [], [usersQuery.data])
+  const templates = useMemo(() => templatesQuery.data ?? [], [templatesQuery.data])
 
 
   const counts = useMemo(() => {
@@ -152,6 +171,49 @@ function App() {
     }
   }
 
+  const handleCreateTemplate = async (values: CreateTaskTemplatePayload) => {
+    await createTemplateMutation.mutateAsync(values)
+    showToast('Plantilla añadida')
+  }
+
+  const handleUpdateTemplate = async (id: number, values: CreateTaskTemplatePayload) => {
+    await updateTemplateMutation.mutateAsync({ id, payload: values })
+    showToast('Plantilla actualizada')
+  }
+
+  const handleConfirmDeleteTemplate = async () => {
+    if (!templateToDelete) {
+      return
+    }
+    try {
+      await deleteTemplateMutation.mutateAsync(templateToDelete.id)
+      showToast('Plantilla eliminada')
+    } catch {
+      showToast('No se ha podido eliminar la plantilla')
+    } finally {
+      setTemplateToDelete(undefined)
+    }
+  }
+
+  const handleConfirmCreateTaskFromTemplate = async (payload: {
+    dueDate: string | null
+    assignedUserId: number | null
+  }) => {
+    if (!templateForNewTask) {
+      return
+    }
+    try {
+      await createTaskFromTemplateMutation.mutateAsync({
+        templateId: templateForNewTask.id,
+        payload,
+      })
+      showToast('Tarea creada desde la plantilla')
+      setTemplateForNewTask(undefined)
+    } catch {
+      showToast('No se ha podido crear la tarea desde la plantilla')
+    }
+  }
+
   return (
     <div className="min-h-screen overflow-hidden">
       <AppHeader />
@@ -172,6 +234,14 @@ function App() {
               onCreate={handleCreateUser}
               onUpdate={handleUpdateUser}
               onDelete={setUserToDelete}
+            />
+            <TemplateManager
+              templates={templates}
+              isLoading={templatesQuery.isLoading}
+              onCreate={handleCreateTemplate}
+              onUpdate={handleUpdateTemplate}
+              onDelete={setTemplateToDelete}
+              onCreateTaskFromTemplate={setTemplateForNewTask}
             />
           </div>
 
@@ -215,6 +285,22 @@ function App() {
         message={`¿Seguro que quieres eliminar a «${userToDelete?.name ?? ''}»? Las tareas asignadas quedarán sin asignar.`}
         onConfirm={handleConfirmDeleteUser}
         onCancel={() => setUserToDelete(undefined)}
+      />
+
+      <ConfirmDialog
+        open={Boolean(templateToDelete)}
+        title="Eliminar plantilla"
+        message={`¿Seguro que quieres eliminar la plantilla «${templateToDelete?.title ?? ''}»? Esta acción no se puede deshacer.`}
+        onConfirm={handleConfirmDeleteTemplate}
+        onCancel={() => setTemplateToDelete(undefined)}
+      />
+
+      <CreateTaskFromTemplateDialog
+        template={templateForNewTask}
+        users={users}
+        isSubmitting={createTaskFromTemplateMutation.isPending}
+        onConfirm={handleConfirmCreateTaskFromTemplate}
+        onCancel={() => setTemplateForNewTask(undefined)}
       />
 
       <ToastContainer toasts={toasts} />

@@ -3,6 +3,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using TaskFlow.Application.Common;
 using TaskFlow.Application.Tasks;
+using TaskFlow.Application.Templates;
 using TaskFlow.Application.Users;
 using TaskFlow.Infrastructure.Common;
 using TaskFlow.Infrastructure.Persistence;
@@ -21,6 +22,7 @@ public static class DependencyInjection
 
         services.AddScoped<ITaskRepository, TaskRepository>();
         services.AddScoped<IUserRepository, UserRepository>();
+        services.AddScoped<ITaskTemplateRepository, TaskTemplateRepository>();
         services.AddSingleton<IDateTimeProvider, SystemDateTimeProvider>();
 
         return services;

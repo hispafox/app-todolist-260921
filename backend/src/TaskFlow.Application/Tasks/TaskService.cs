@@ -1,5 +1,6 @@
 using TaskFlow.Application.Common;
 using TaskFlow.Application.Tasks.Dtos;
+using TaskFlow.Application.Templates;
 using TaskFlow.Application.Users;
 using TaskFlow.Domain.Entities;
 using TaskFlow.Domain.Enums;
@@ -10,12 +11,18 @@ public class TaskService : ITaskService
 {
     private readonly ITaskRepository _repository;
     private readonly IUserRepository _userRepository;
+    private readonly ITaskTemplateRepository _templateRepository;
     private readonly IDateTimeProvider _dateTimeProvider;
 
-    public TaskService(ITaskRepository repository, IUserRepository userRepository, IDateTimeProvider dateTimeProvider)
+    public TaskService(
+        ITaskRepository repository,
+        IUserRepository userRepository,
+        ITaskTemplateRepository templateRepository,
+        IDateTimeProvider dateTimeProvider)
     {
         _repository = repository;
         _userRepository = userRepository;
+        _templateRepository = templateRepository;
         _dateTimeProvider = dateTimeProvider;
     }
 
@@ -41,6 +48,32 @@ public class TaskService : ITaskService
             request.Description,
             (TaskPriority)request.Priority,
             request.Category,
+            request.DueDate,
+            request.AssignedUserId,
+            now);
+
+        await _repository.AddAsync(task, cancellationToken);
+        await _repository.SaveChangesAsync(cancellationToken);
+
+        return task.ToDto();
+    }
+
+    public async Task<TaskDto?> CreateTaskFromTemplateAsync(int templateId, CreateTaskFromTemplateRequest request, CancellationToken cancellationToken)
+    {
+        var template = await _templateRepository.GetByIdAsync(templateId, cancellationToken);
+        if (template is null)
+        {
+            return null;
+        }
+
+        await EnsureAssignedUserExistsAsync(request.AssignedUserId, cancellationToken);
+
+        var now = _dateTimeProvider.UtcNow;
+        var task = new TaskItem(
+            template.Title,
+            template.Description,
+            template.Priority,
+            template.Category,
             request.DueDate,
             request.AssignedUserId,
             now);
