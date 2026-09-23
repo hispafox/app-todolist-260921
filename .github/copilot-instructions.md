@@ -58,6 +58,15 @@ frontend/
 - Usar DTOs para los contratos HTTP; no exponer entidades de EF Core directamente.
 - Inyectar dependencias mediante el contenedor; no crear servicios manualmente con `new`.
 
+## Agentes especializados
+
+- `@planificador-apptodolist` analiza peticiones de cambio y genera o actualiza `docs/plan-<slug>.md`.
+- El planificador solo puede consultar el repositorio y editar el documento de planificación; no modifica código, pruebas, configuración ni bases de datos.
+- Para cada petición, consulta `docs/skills-orquestacion.md` y los `SKILL.md` aplicables, y deja en el plan los skills seleccionados, sus prerrequisitos, artefactos y orden de ejecución posterior.
+- El plan debe recoger requisitos, alcance por capas, archivos y símbolos reales, secuencia de implementación, verificación, riesgos, supuestos y fuera de alcance.
+- El planificador valida estructura, trazabilidad, secuencia, skills y pruebas del plan antes de presentarlo como `PLAN VALIDADO`. Solo tras la aprobación explícita del usuario y su autorización para crear el issue revalida el archivo y delega la publicación.
+- `creador-issue-desde-plan` es un subagente no invocable por el usuario. Recibe la ruta del `docs/plan-*.md`, el estado `PLAN VALIDADO` y la aprobación; crea un único issue de GitHub después de comprobar que no exista un duplicado.
+
 ## Modelo y contrato
 
 La entidad `Task` mantiene estos campos: `Id`, `Title`, `Description`, `Priority`, `Category`, `IsCompleted`, `DueDate`, `AssignedUserId`, `CreatedAt` y `UpdatedAt`. `Title` es obligatorio; el resto de campos opcionales u obligatorios debe respetar el PRD.
